@@ -309,7 +309,8 @@
 
   var CDN = {
     opentype: 'https://cdn.jsdelivr.net/npm/opentype.js@2.0.0/dist/opentype.min.js',
-    woff2: 'https://cdn.jsdelivr.net/npm/wawoff2@2.0.1/build/decompress_binding.js'
+    woff2: 'https://cdn.jsdelivr.net/npm/wawoff2@2.0.1/build/decompress_binding.js',
+    paper: 'https://cdn.jsdelivr.net/npm/paper@0.12.18/dist/paper-core.min.js'
   };
 
   /** Guard against pathological input turning into a megabyte of path data. */
@@ -633,6 +634,7 @@
         window.vfWoff2 = emscripten;
         return loadScript(CDN.opentype);
       })
+      .then(function () { return loadScript(CDN.paper); })
       .catch(function (error) {
         libsPromise = null; // Allow a retry after a transient network failure.
         throw error;
@@ -723,6 +725,76 @@
       });
   }
 
+  /**
+   * Merge overlapping contours into non-overlapping ones.
+   *
+   * TrueType glyphs are drawn assuming the nonzero winding rule, and variable
+   * fonts lean on it hard — interpolating between masters routinely leaves
+   * contours overlapping, which nonzero silently resolves. Google Slides
+   * fills imported custom geometry with the *even-odd* rule instead, so those
+   * overlaps come out punched into holes: a bite out of the `e`, notches where
+   * a bowl meets a stem.
+   *
+   * Uniting the contours bakes the nonzero interpretation into the geometry
+   * itself, so the result renders identically under either rule. paper.js does
+   * this on the beziers directly, so no curve is flattened to line segments.
+   */
+  function unionCommands(commands) {
+    if (!window.paper) return commands;
+    var scope = window.paper;
+    scope.setup(document.createElement('canvas'));
+    try {
+      var compound = new scope.CompoundPath(commandsToPathData(commands));
+      var resolved = compound.resolveCrossings().reorient(true, true);
+      var merged = paperToCommands(resolved);
+      compound.remove();
+      return merged.length ? merged : commands;
+    } finally {
+      // Each insert sets up a fresh project; clear it so they do not pile up.
+      if (scope.project) scope.project.clear();
+    }
+  }
+
+  /** Command arrays -> an SVG path string, which is what paper.js parses. */
+  function commandsToPathData(commands) {
+    return commands.map(function (command) {
+      if (command[0] === 'Z') return 'Z';
+      return command[0] + command.slice(1).join(' ');
+    }).join(' ');
+  }
+
+  /**
+   * Read paper.js segments straight back into command arrays. Going via
+   * segment handles rather than paper's own path string avoids a second
+   * rounding step.
+   */
+  function paperToCommands(item) {
+    var paths = item.children && item.children.length ? item.children : [item];
+    var commands = [];
+    paths.forEach(function (path) {
+      var segments = path.segments;
+      if (!segments || segments.length < 2) return;
+      commands.push(['M', segments[0].point.x, segments[0].point.y]);
+      var last = path.closed ? segments.length : segments.length - 1;
+      for (var i = 0; i < last; i++) {
+        var from = segments[i];
+        var to = segments[(i + 1) % segments.length];
+        if (from.handleOut.isZero() && to.handleIn.isZero()) {
+          commands.push(['L', to.point.x, to.point.y]);
+        } else {
+          commands.push([
+            'C',
+            from.point.x + from.handleOut.x, from.point.y + from.handleOut.y,
+            to.point.x + to.handleIn.x, to.point.y + to.handleIn.y,
+            to.point.x, to.point.y
+          ]);
+        }
+      }
+      commands.push(['Z']);
+    });
+    return commands;
+  }
+
   function commandToArray(command) {
     if (command.type === 'M' || command.type === 'L') return [command.type, command.x, command.y];
     if (command.type === 'C') {
@@ -770,7 +842,16 @@
         commands.push(commandToArray(command));
       });
     });
-    return commands;
+
+    try {
+      return unionCommands(commands);
+    } catch (unionError) {
+      // Raw outlines still beat no outlines; the overlaps will show as
+      // even-odd artefacts, which is what the warning is for.
+      setStatus('Could not merge overlapping contours (' + unionError.message +
+        '); inserting raw outlines, which may show notches.', 'warn');
+      return commands;
+    }
   }
 
   // ------------------------------------------------------------- actions

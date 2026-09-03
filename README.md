@@ -31,6 +31,7 @@ So the add-on takes that road, automatically:
 ```
 axis values
    -> glyph outlines            (opentype.js, variations applied, in the sidebar)
+   -> contours unioned so they do not overlap  (paper.js, in the sidebar)
    -> <a:custGeom> bezier paths (Outline.js)
    -> a one-slide .pptx         (Pptx.js)
    -> Drive converts it to Slides
@@ -196,9 +197,14 @@ did not carry the custom geometry. Tick **Import onto a new slide instead** in
 the sidebar; that path uses `insertSlide()` and leaves the outlines one
 cut-and-paste from your slide.
 
-**"Could not load …jsdelivr…"** — vector mode loads `opentype.js` and the woff2
-decompressor from a CDN. If your network blocks it, editable-text mode still
-works.
+**"Could not load …jsdelivr…"** — vector mode loads `opentype.js`, the woff2
+decompressor and `paper.js` from a CDN. If your network blocks it,
+editable-text mode still works.
+
+**Notches or bites out of letterforms** — the contour union did not run; the
+sidebar warns when it falls back to raw outlines. Slides fills custom geometry
+with the even-odd rule, so overlapping contours (which variable fonts produce
+routinely) punch through as holes. Check that `paper.js` loaded.
 
 **The preview shows a fallback font** — the family has not downloaded yet, or
 the sidebar cannot reach `fonts.googleapis.com`. The font list itself comes
@@ -215,9 +221,9 @@ Script → Executions* to see the server-side error.
 - **Shaping is basic.** Kerning and Latin ligature substitution work; complex
   scripts (Arabic, Indic) are not shaped correctly in vector mode. Use
   editable-text mode for those.
-- **Vector mode needs a CDN.** `opentype.js` and the woff2 decompressor load
-  from jsDelivr. If your network blocks it, vector mode reports the failure and
-  editable-text mode still works.
+- **Vector mode needs a CDN.** `opentype.js`, the woff2 decompressor and
+  `paper.js` load from jsDelivr. If your network blocks it, vector mode reports
+  the failure and editable-text mode still works.
 - **Very long text** in vector mode is refused past 120,000 path segments — a
   headline outlines fine, a paragraph should stay as text.
 - **Optical size in preview** reflects the axis value you set, not the size the

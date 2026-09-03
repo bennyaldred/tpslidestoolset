@@ -58,6 +58,31 @@ new slide instead*, which uses `Presentation.insertSlide(index, slide)` — a
 documented cross-presentation copy — and leaves the shapes one cut-and-paste
 away.
 
+## Slides fills custom geometry with the even-odd rule
+
+The first working import came back with letterforms that were *nearly* right:
+a rectangular bite out of the `e`, notches where a bowl meets a stem, a step on
+the `l`. `V`, `r` and `i` were clean.
+
+That pattern is diagnostic. TrueType glyphs are drawn assuming the **nonzero
+winding** rule, and variable fonts lean on it hard — interpolating between
+masters routinely leaves contours overlapping, because nonzero resolves them
+silently. Google Slides fills imported `custGeom` with the **even-odd** rule
+instead, which turns every overlap into a hole. Letters with no overlapping
+contours were unaffected, which is why `V` and `r` survived.
+
+Rendering the same path locally with `fill-rule="evenodd"` reproduced the
+defect exactly, including the position of the bite in the `e`.
+
+DrawingML has no fill-rule attribute, so the rule cannot be declared. The fix
+is to make the geometry rule-independent: union the contours before export, so
+no two overlap and even-odd and nonzero agree. paper.js does this on the
+beziers directly (`resolveCrossings().reorient(true, true)`), so nothing is
+flattened into line segments. It costs about 30% more path data and 10–30ms.
+
+The lesson generalises: anything exported to Slides as custom geometry should
+be overlap-free before it leaves.
+
 ## Why not a raster image
 
 An earlier draft rendered the design to PNG via an SVG `foreignObject` with the
@@ -82,3 +107,10 @@ it was removed rather than kept as a lesser option.
   an SVG path, and rendered next to the browser's own rendering of the same
   font at the same axis values. They match, down to the near-closed `e`
   aperture Roboto Flex has at `wght 900 / wdth 151 / opsz 144`.
+- After the overlap fix, the whole chain — outlines, union, command arrays,
+  `vfBuildShapeXml`, and the path read back out of the resulting XML — was
+  rendered under **even-odd**, the rule Slides actually uses. Clean at both the
+  default instance and `wght 900 / wdth 151`.
+- Confirmed in Slides itself: imported shapes arrive as editable vector
+  freeforms, so `Slide.insertShape(shape)` does carry custom geometry across
+  presentations.
