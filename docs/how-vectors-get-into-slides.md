@@ -34,10 +34,10 @@ copy the shapes, paste them into the real deck.
 
 Every step of that is automatable:
 
-1. **Outlines.** `opentype.js` parses the variable font and applies the axis
-   coordinates (`fvar`/`gvar`), then returns real glyph paths for the instance.
-   This happens in the sidebar, because Apps Script cannot run WebAssembly and
-   the font arrives as woff2, which needs a Brotli-based decompressor.
+1. **Outlines.** HarfBuzz shapes the text and returns glyph outlines at the
+   requested axis coordinates. This happens in the sidebar, because Apps Script
+   cannot run WebAssembly and the font arrives as woff2, which needs a
+   Brotli-based decompressor.
 2. **Geometry.** `Outline.js` converts those paths to `<a:custGeom>`. All
    contours go into a single `<a:path>` so that counters — the hole in an `o` —
    knock out under the nonzero winding rule. TrueType quadratics are promoted
@@ -113,13 +113,28 @@ individually through paper.js `resolveCrossings()`, guarded by a bounding-box
 check that keeps the original if the result looks nothing like it. Resolving
 one contour is the operation these libraries are most reliable at.
 
-### opentype.js crashes on some fonts
+### opentype.js was not accurate enough
 
-Separately, opentype.js runs OpenType feature substitution before drawing and
-throws on lookup types it does not implement. Five of eighteen test fonts hit
-it — Archivo, Chivo, Nunito, Outfit, Bricolage Grotesque — failing the entire
-insert. Where that happens the glyphs are laid out directly instead: kerning
-still applies, only ligature substitution is lost.
+The outline extraction originally used opentype.js, and it was the single
+largest source of error — larger than anything in the geometry pipeline.
+
+- It got **variable-glyph interpolation wrong**. Google Sans Flex at `ROND 100`
+  came back torn: the `V` sliced through, stems reduced to hairlines, the `r`
+  broken apart. Rendering the same instance three ways — browser CSS,
+  opentype.js, and the exported geometry — showed the browser correct and
+  opentype.js progressively degrading from `ROND 50` onward. The exported
+  geometry matched opentype.js to 0.000%, which is to say it was faithfully
+  reproducing bad outlines.
+- It **threw outright** on OpenType lookup types it does not implement, killing
+  the insert for five of eighteen test families (Archivo, Chivo, Nunito,
+  Outfit, Bricolage Grotesque).
+
+Both are fixed by shaping with **HarfBuzz** instead — the reference OpenType
+implementation, and the same engine the browser uses to render the sidebar
+preview. It handles the full variation model, and it shapes every font in the
+corpus. The lesson is that the reference for "exact" has to be the browser, not
+another library: measuring the export against opentype.js only proved the two
+agreed.
 
 ### Measured
 
@@ -127,13 +142,15 @@ A sweep of 18 variable families × 3 axis extremes renders the raw outlines
 under nonzero (what the font means) against the final `custGeom` under even-odd
 (what Slides shows), and pixel-diffs them:
 
-| | worst case | cases over 0.05% |
-|---|---|---|
-| whole-word boolean union | 4.73% | 22 of 54 (5 crashed outright) |
-| one shape per outer contour | **0.106%** | **1 of 54** |
+| | reference | worst case | cases over 0.05% |
+|---|---|---|---|
+| whole-word boolean union | opentype.js | 4.73% | 22 of 54 (5 crashed outright) |
+| one shape per outer contour | opentype.js | 0.106% | 1 of 54 |
+| + HarfBuzz shaping | **the browser** | **0.092%** | **1 of 38** |
 
-The remaining 0.106% is a single hairline where a stem edge lands on a pixel
-boundary — antialiasing, not geometry.
+The first two rows measure against opentype.js, which was itself wrong; only
+the last row measures against the browser, and it is the one that matters. The
+remaining 0.092% is antialiasing along contour edges, not geometry.
 
 ## Why not a raster image## Why not a raster image
 

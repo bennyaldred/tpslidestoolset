@@ -16,7 +16,11 @@
   'use strict';
 
   var CDN = {
-    opentype: 'https://cdn.jsdelivr.net/npm/opentype.js@2.0.0/dist/opentype.min.js',
+    // HarfBuzz is the reference OpenType engine — the same one browsers use to
+    // render text. opentype.js was tried first and got variable-glyph
+    // interpolation wrong: Google Sans Flex came out torn at high ROND values,
+    // and it threw outright on several families' feature lookups.
+    harfbuzz: 'https://cdn.jsdelivr.net/npm/harfbuzzjs@1.6.1/dist/index.mjs',
     woff2: 'https://cdn.jsdelivr.net/npm/wawoff2@2.0.1/build/decompress_binding.js',
     paper: 'https://cdn.jsdelivr.net/npm/paper@0.12.18/dist/paper-core.min.js'
   };
@@ -340,9 +344,16 @@
       })
       .then(function (emscripten) {
         window.vfWoff2 = emscripten;
-        return loadScript(CDN.opentype);
+        return loadScript(CDN.paper);
       })
-      .then(function () { return loadScript(CDN.paper); })
+      .then(function () {
+        // harfbuzzjs ships as an ES module, so it comes in through a dynamic
+        // import rather than a script tag.
+        return import(CDN.harfbuzz);
+      })
+      .then(function (harfbuzz) {
+        window.vfHarfBuzz = harfbuzz;
+      })
       .catch(function (error) {
         libsPromise = null; // Allow a retry after a transient network failure.
         throw error;
@@ -425,11 +436,11 @@
       })
       .then(function (buffer) {
         var decompressed = window.vfWoff2.decompress(new Uint8Array(buffer));
-        var bytes = new Uint8Array(decompressed);
-        var parsed = window.opentype.parse(
-          bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length));
-        fontBinaryCache[key] = parsed;
-        return parsed;
+        var hb = window.vfHarfBuzz;
+        var face = new hb.Face(new hb.Blob(new Uint8Array(decompressed)));
+        var loaded = { hb: hb, face: face, font: new hb.Font(face), upem: face.upem };
+        fontBinaryCache[key] = loaded;
+        return loaded;
       });
   }
 
@@ -650,95 +661,112 @@
   }
 
   /**
-   * opentype.js runs OpenType feature substitution before drawing, and throws
-   * outright on lookup types it does not implement — which several Google
-   * Fonts families use (Archivo, Chivo, Nunito, Outfit, Bricolage Grotesque
-   * among them), failing the whole insert. Where that happens, lay the glyphs
-   * out directly instead: kerning still applies, only ligature substitution is
-   * lost, which Latin display type rarely misses.
+   * Parse one glyph's SVG path from HarfBuzz into command arrays, placing it
+   * at the pen position.
+   *
+   * HarfBuzz reports outlines in font units with y pointing up; the rest of the
+   * pipeline works in points with y pointing down and the baseline at zero, so
+   * each coordinate is scaled and flipped on the way through.
    */
-  function outlineLine(font, line, offsetX, offsetY, fontSize, options) {
-    try {
-      return font.getPath(line, offsetX, offsetY, fontSize, options).commands.map(commandToArray);
-    } catch (shaperError) {
-      var commands = [];
-      var scale = fontSize / font.unitsPerEm;
-      var tracking = (options && options.letterSpacing ? options.letterSpacing : 0) * fontSize;
-      var x = offsetX;
-      var previous = null;
-      var characters = String(line).split('');
-      for (var i = 0; i < characters.length; i++) {
-        var glyph = font.charToGlyph(characters[i]);
-        if (previous) {
-          try { x += font.getKerningValue(previous, glyph) * scale; } catch (kernError) { /* no kern table */ }
-        }
-        glyph.getPath(x, offsetY, fontSize).commands.forEach(function (command) {
-          commands.push(commandToArray(command));
-        });
-        x += glyph.advanceWidth * scale + tracking;
-        previous = glyph;
+  function glyphPathToCommands(pathData, scale, penX, penY) {
+    var commands = [];
+    var pattern = /([MLQCZmlqcz])([^MLQCZmlqcz]*)/g;
+    var match;
+    while ((match = pattern.exec(pathData)) !== null) {
+      var type = match[1].toUpperCase();
+      if (type === 'Z') {
+        commands.push(['Z']);
+        continue;
       }
-      return commands;
+      var numbers = match[2].trim().split(/[\s,]+/).filter(function (token) {
+        return token.length;
+      }).map(Number);
+      var command = [type];
+      for (var i = 0; i + 1 < numbers.length; i += 2) {
+        command.push(numbers[i] * scale + penX);
+        command.push(-numbers[i + 1] * scale + penY);
+      }
+      commands.push(command);
     }
+    return commands;
   }
 
-  /** Line width, using the same fallback as outlineLine. */
-  function measureLine(font, line, fontSize, options) {
-    try {
-      return font.getAdvanceWidth(line, fontSize, options);
-    } catch (shaperError) {
-      var scale = fontSize / font.unitsPerEm;
-      var tracking = (options && options.letterSpacing ? options.letterSpacing : 0) * fontSize;
-      var width = 0;
-      var previous = null;
-      var characters = String(line).split('');
-      for (var i = 0; i < characters.length; i++) {
-        var glyph = font.charToGlyph(characters[i]);
-        if (previous) {
-          try { width += font.getKerningValue(previous, glyph) * scale; } catch (kernError) { /* no kern table */ }
-        }
-        width += glyph.advanceWidth * scale + tracking;
-        previous = glyph;
+  /**
+   * Shape one line with HarfBuzz and return its outlines and advance width.
+   * Tracking is applied between glyphs, after shaping, so kerning and any
+   * ligature substitution still apply.
+   */
+  function shapeLine(loaded, line, fontSize, trackingEm) {
+    var hb = loaded.hb;
+    var scale = fontSize / loaded.upem;
+    var tracking = (trackingEm || 0) * fontSize;
+
+    var buffer = new hb.Buffer();
+    buffer.addText(line);
+    buffer.guessSegmentProperties();
+    hb.shape(loaded.font, buffer);
+    var infos = buffer.getGlyphInfos();
+    var positions = buffer.getGlyphPositions();
+
+    var commands = [];
+    var penX = 0;
+    var penY = 0;
+    for (var i = 0; i < infos.length; i++) {
+      var glyphId = infos[i].codepoint === undefined ? infos[i].g : infos[i].codepoint;
+      var pathData = loaded.font.glyphToPath(glyphId);
+      if (pathData) {
+        commands = commands.concat(glyphPathToCommands(
+          pathData,
+          scale,
+          penX + (positions[i].xOffset || 0) * scale,
+          penY - (positions[i].yOffset || 0) * scale));
       }
-      return width;
+      penX += (positions[i].xAdvance || 0) * scale;
+      penY -= (positions[i].yAdvance || 0) * scale;
+      if (i < infos.length - 1) penX += tracking;
     }
+    return { commands: commands, width: penX };
   }
 
   /**
    * Lay the text out and return flat path commands in points, y down, first
    * baseline at y = 0 (which is what the DrawingML builder expects).
    */
-  function buildOutlines(parsedFont, spec) {
-    var coordinates = {};
-    (parsedFont.tables.fvar ? parsedFont.tables.fvar.axes : []).forEach(function (axis) {
-      var value = spec.values[axis.tag];
-      coordinates[axis.tag] = value === undefined ? axis.defaultValue : value;
+  function buildOutlines(loaded, spec) {
+    var hb = loaded.hb;
+    var axisInfos = loaded.face.getAxisInfos();
+    var variations = [];
+    Object.keys(axisInfos).forEach(function (tag) {
+      var value = spec.values[tag];
+      variations.push(new hb.Variation(
+        tag, value === undefined ? axisInfos[tag].default : value));
     });
-    if (parsedFont.variation && parsedFont.tables.fvar) {
-      parsedFont.variation.set(coordinates);
-    }
+    loaded.font.setVariations(variations);
 
-    // opentype.js applies the new coordinates lazily, on the first glyph it is
-    // asked to draw. Without this warm-up the advance widths below are still
-    // the previous instance's. Do not remove.
-    try { parsedFont.getPath('A', 0, 0, spec.fontSize); } catch (warmupError) { /* see outlineLine */ }
-
-    var options = { kerning: true, letterSpacing: spec.tracking || 0 };
     var lines = String(spec.text).split('\n');
-    var widths = lines.map(function (line) {
-      return line ? measureLine(parsedFont, line, spec.fontSize, options) : 0;
+    var shaped = lines.map(function (line) {
+      return line ? shapeLine(loaded, line, spec.fontSize, spec.tracking) : { commands: [], width: 0 };
     });
-    var maxWidth = Math.max.apply(null, widths.concat([0]));
+    var maxWidth = shaped.reduce(function (widest, line) {
+      return Math.max(widest, line.width);
+    }, 0);
     var lineAdvance = spec.fontSize * ((spec.lineSpacing || 110) / 100);
 
     var commands = [];
-    lines.forEach(function (line, index) {
-      if (!line.trim()) return;
+    shaped.forEach(function (line, index) {
+      if (!line.commands.length) return;
       var offsetX = 0;
-      if (spec.align === 'center') offsetX = (maxWidth - widths[index]) / 2;
-      else if (spec.align === 'right') offsetX = maxWidth - widths[index];
-      outlineLine(parsedFont, line, offsetX, index * lineAdvance, spec.fontSize, options)
-        .forEach(function (command) { commands.push(command); });
+      if (spec.align === 'center') offsetX = (maxWidth - line.width) / 2;
+      else if (spec.align === 'right') offsetX = maxWidth - line.width;
+      var offsetY = index * lineAdvance;
+      line.commands.forEach(function (command) {
+        var moved = [command[0]];
+        for (var i = 1; i + 1 < command.length; i += 2) {
+          moved.push(command[i] + offsetX);
+          moved.push(command[i + 1] + offsetY);
+        }
+        commands.push(moved);
+      });
     });
 
     try {
@@ -783,8 +811,8 @@
 
     setStatus('Building vector outlines…');
     loadFontBinary(state.font, spec.text)
-      .then(function (parsedFont) {
-        var commands = buildOutlines(parsedFont, spec);
+      .then(function (loadedFont) {
+        var commands = buildOutlines(loadedFont, spec);
         if (!commands.length) throw new Error('That text produced no visible outlines.');
         if (commands.length > MAX_OUTLINE_COMMANDS) {
           throw new Error('That is too much text to outline (' + commands.length +

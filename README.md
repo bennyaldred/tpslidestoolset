@@ -12,7 +12,7 @@ ways around that, and tells you exactly what each one costs.
 | What lands on the slide | A real Slides text box | Native freeform vector shapes |
 | Text stays editable | **Yes** — type in it, spell-check it, restyle it | No — it is artwork |
 | Axis fidelity | `wght` snaps to steps of 100, `wdth` swaps to a sibling family, everything else is lost | **Exact**, every axis, including custom ones |
-| Geometry | n/a | Coordinates are the font's own — measured worst case 0.1% of pixels across 18 families |
+| Geometry | n/a | Shaped with HarfBuzz, the engine browsers render text with — measured worst case 0.09% of pixels against the browser's own rendering |
 | Recolour / resize in Slides | Yes | Yes, losslessly (it is vector, not a picture) |
 | Tracking (letter-spacing) | Not supported by Slides | Yes |
 | Best for | Body copy and headings you will keep editing | Display type, logotypes, anything where the design matters |
@@ -31,7 +31,7 @@ So the add-on takes that road, automatically:
 
 ```
 axis values
-   -> glyph outlines            (opentype.js, variations applied, in the sidebar)
+   -> glyph outlines            (HarfBuzz, variations applied, in the sidebar)
    -> self-crossing contours resolved          (paper.js, in the sidebar)
    -> one <a:custGeom> shape per outer contour (Outline.js)
    -> a one-slide .pptx         (Pptx.js)
@@ -208,10 +208,9 @@ sidebar resolves those before export and warns if it could not; check that
 `paper.js` loaded. Overlapping *separate* contours are handled by emitting them
 as separate shapes and need no library at all.
 
-**Ligatures missing in vector mode** — opentype.js throws on OpenType lookup
-types it does not implement, which several Google Fonts families use. The
-sidebar falls back to laying glyphs out directly: kerning still applies, but
-ligature substitution is skipped.
+**Vector output does not match the preview** — both should now be identical;
+the sidebar shapes text with HarfBuzz, the same engine the browser uses to
+render the preview. If they differ, that is a bug worth reporting.
 
 **The preview shows a fallback font** — the family has not downloaded yet, or
 the sidebar cannot reach `fonts.googleapis.com`. The font list itself comes
@@ -225,16 +224,15 @@ Script → Executions* to see the server-side error.
 
 - **Vector outlines are not text.** You cannot retype them. Design first,
   outline last.
-- **Shaping is basic.** Kerning works everywhere and Latin ligatures work on
-  most families; complex scripts (Arabic, Indic) are not shaped correctly in
-  vector mode. Use editable-text mode for those.
+- **Shaping is full OpenType.** Vector mode shapes with HarfBuzz, so kerning,
+  ligatures and complex scripts behave as they do in the browser.
 - **Vector mode inserts a group, not one shape.** There is one shape per outer
   contour — roughly one per letter, more for letters with counters — grouped
   together. That is what keeps the geometry exact, and it makes individual
   letters selectable inside the group.
-- **Vector mode needs a CDN.** `opentype.js`, the woff2 decompressor and
-  `paper.js` load from jsDelivr. If your network blocks it, vector mode reports
-  the failure and editable-text mode still works.
+- **Vector mode needs a CDN.** HarfBuzz (WebAssembly), the woff2 decompressor
+  and `paper.js` load from jsDelivr. If your network blocks it, vector mode
+  reports the failure and editable-text mode still works.
 - **Very long text** in vector mode is refused past 120,000 path segments — a
   headline outlines fine, a paragraph should stay as text.
 - **Optical size in preview** reflects the axis value you set, not the size the
