@@ -12,6 +12,7 @@ ways around that, and tells you exactly what each one costs.
 | What lands on the slide | A real Slides text box | Native freeform vector shapes |
 | Text stays editable | **Yes** — type in it, spell-check it, restyle it | No — it is artwork |
 | Axis fidelity | `wght` snaps to steps of 100, `wdth` swaps to a sibling family, everything else is lost | **Exact**, every axis, including custom ones |
+| Geometry | n/a | Coordinates are the font's own — measured worst case 0.1% of pixels across 18 families |
 | Recolour / resize in Slides | Yes | Yes, losslessly (it is vector, not a picture) |
 | Tracking (letter-spacing) | Not supported by Slides | Yes |
 | Best for | Body copy and headings you will keep editing | Display type, logotypes, anything where the design matters |
@@ -31,8 +32,8 @@ So the add-on takes that road, automatically:
 ```
 axis values
    -> glyph outlines            (opentype.js, variations applied, in the sidebar)
-   -> contours unioned so they do not overlap  (paper.js, in the sidebar)
-   -> <a:custGeom> bezier paths (Outline.js)
+   -> self-crossing contours resolved          (paper.js, in the sidebar)
+   -> one <a:custGeom> shape per outer contour (Outline.js)
    -> a one-slide .pptx         (Pptx.js)
    -> Drive converts it to Slides
    -> the shapes are copied onto your current slide
@@ -201,10 +202,16 @@ cut-and-paste from your slide.
 decompressor and `paper.js` from a CDN. If your network blocks it,
 editable-text mode still works.
 
-**Notches or bites out of letterforms** — the contour union did not run; the
-sidebar warns when it falls back to raw outlines. Slides fills custom geometry
-with the even-odd rule, so overlapping contours (which variable fonts produce
-routinely) punch through as holes. Check that `paper.js` loaded.
+**Notches or bites out of letterforms** — Slides fills custom geometry with the
+even-odd rule, so contours that cross themselves punch through as holes. The
+sidebar resolves those before export and warns if it could not; check that
+`paper.js` loaded. Overlapping *separate* contours are handled by emitting them
+as separate shapes and need no library at all.
+
+**Ligatures missing in vector mode** — opentype.js throws on OpenType lookup
+types it does not implement, which several Google Fonts families use. The
+sidebar falls back to laying glyphs out directly: kerning still applies, but
+ligature substitution is skipped.
 
 **The preview shows a fallback font** — the family has not downloaded yet, or
 the sidebar cannot reach `fonts.googleapis.com`. The font list itself comes
@@ -218,9 +225,13 @@ Script → Executions* to see the server-side error.
 
 - **Vector outlines are not text.** You cannot retype them. Design first,
   outline last.
-- **Shaping is basic.** Kerning and Latin ligature substitution work; complex
-  scripts (Arabic, Indic) are not shaped correctly in vector mode. Use
-  editable-text mode for those.
+- **Shaping is basic.** Kerning works everywhere and Latin ligatures work on
+  most families; complex scripts (Arabic, Indic) are not shaped correctly in
+  vector mode. Use editable-text mode for those.
+- **Vector mode inserts a group, not one shape.** There is one shape per outer
+  contour — roughly one per letter, more for letters with counters — grouped
+  together. That is what keeps the geometry exact, and it makes individual
+  letters selectable inside the group.
 - **Vector mode needs a CDN.** `opentype.js`, the woff2 decompressor and
   `paper.js` load from jsDelivr. If your network blocks it, vector mode reports
   the failure and editable-text mode still works.

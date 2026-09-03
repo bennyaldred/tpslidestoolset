@@ -84,13 +84,33 @@ test('a generated glyph shape round-trips as freeform custom geometry', () => {
     ['M', 0, 0], ['L', 100, 0], ['L', 100, 100], ['L', 0, 100], ['Z'],
     ['M', 30, 30], ['L', 30, 70], ['L', 70, 70], ['L', 70, 30], ['Z']
   ];
-  const shape = vf.vfBuildShapeXml({ commands, id: 2, name: 'O', color: '#000000' });
+  const shape = vf.vfBuildShapesXml({ commands, firstId: 2, name: 'O', color: '#000000' });
   const slide = Array.from(vf.vfBuildPptxParts({ shapesXml: shape.xml }))
     .find(p => p.path === 'ppt/slides/slide1.xml').xml;
 
   assert.match(slide, /<a:custGeom>/);
-  // Both contours must live in one <a:path> or the counter will not knock out.
+  // Outer and counter must share one <a:path>, or the counter will not knock
+  // out under the even-odd rule Slides applies.
+  assert.equal(shape.count, 1);
   assert.equal((slide.match(/<a:path /g) || []).length, 1);
   assert.equal((slide.match(/<a:moveTo>/g) || []).length, 2);
   assert.equal((slide.match(/<a:close\/>/g) || []).length, 2);
+});
+
+test('overlapping contours are emitted as separate shapes sharing one frame', () => {
+  const commands = [
+    ['M', 0, 0], ['L', 100, 0], ['L', 100, 100], ['L', 0, 100], ['Z'],
+    ['M', 50, 50], ['L', 150, 50], ['L', 150, 150], ['L', 50, 150], ['Z']
+  ];
+  const shape = vf.vfBuildShapesXml({ commands, firstId: 2, name: 'X', color: '#000000' });
+  assert.equal(shape.count, 2);
+  assert.equal((shape.xml.match(/<p:sp>/g) || []).length, 2);
+  // Identical transform on both, so they reassemble in register.
+  const offsets = [...shape.xml.matchAll(/<a:off x="(-?\d+)" y="(-?\d+)"\/>/g)].map(m => m[0]);
+  const extents = [...shape.xml.matchAll(/<a:ext cx="(\d+)" cy="(\d+)"\/>/g)].map(m => m[0]);
+  assert.equal(new Set(offsets).size, 1);
+  assert.equal(new Set(extents).size, 1);
+  // And unique ids, or the package is invalid.
+  const ids = [...shape.xml.matchAll(/<p:cNvPr id="(\d+)"/g)].map(m => m[1]);
+  assert.equal(new Set(ids).size, ids.length);
 });

@@ -64,26 +64,78 @@ The first working import came back with letterforms that were *nearly* right:
 a rectangular bite out of the `e`, notches where a bowl meets a stem, a step on
 the `l`. `V`, `r` and `i` were clean.
 
-That pattern is diagnostic. TrueType glyphs are drawn assuming the **nonzero
-winding** rule, and variable fonts lean on it hard — interpolating between
-masters routinely leaves contours overlapping, because nonzero resolves them
-silently. Google Slides fills imported `custGeom` with the **even-odd** rule
-instead, which turns every overlap into a hole. Letters with no overlapping
-contours were unaffected, which is why `V` and `r` survived.
+TrueType glyphs are drawn assuming the **nonzero winding** rule, and variable
+fonts lean on it hard — interpolating between masters routinely leaves contours
+overlapping, which nonzero resolves silently. Google Slides fills imported
+`custGeom` with the **even-odd** rule instead, which turns every overlap into a
+hole. Letters with no overlapping contours were unaffected, which is why `V` and
+`r` survived. Rendering the same path locally with `fill-rule="evenodd"`
+reproduced the defect exactly, including the position of the bite.
 
-Rendering the same path locally with `fill-rule="evenodd"` reproduced the
-defect exactly, including the position of the bite in the `e`.
+DrawingML has no fill-rule attribute, so the rule cannot be declared. The
+geometry has to be made rule-independent instead.
 
-DrawingML has no fill-rule attribute, so the rule cannot be declared. The fix
-is to make the geometry rule-independent: union the contours before export, so
-no two overlap and even-odd and nonzero agree. paper.js does this on the
-beziers directly (`resolveCrossings().reorient(true, true)`), so nothing is
-flattened into line segments. It costs about 30% more path data and 10–30ms.
+### Boolean union was the wrong fix
 
-The lesson generalises: anything exported to Slides as custom geometry should
-be overlap-free before it leaves.
+The obvious answer is to union the contours so none overlap. That was tried
+first, with paper.js, and it was worse: it filled the counter of `b` solid in
+Epilogue, sheared curves elsewhere, and a measured sweep put it at up to 4.7%
+of pixels wrong. No variant helped — `resolveCrossings().reorient()` in all its
+parameter combinations, uniting against an empty path, uniting per glyph, and a
+polygon clipper on finely flattened curves (which was both worse and fifty
+times larger). Glyph outlines are full of tangential and near-degenerate
+intersections, and that is exactly where boolean libraries break down.
 
-## Why not a raster image
+### What works: never put overlapping contours in one path
+
+Even-odd applies **within a single path**. So the design is split into one
+shape per outer contour, each carrying only the counters nested inside it:
+
+- a counter inside its own outer contour → even-odd makes a hole. Correct.
+- two outer contours that overlap → two separate shapes that overlap on the
+  slide. Correct under any fill rule.
+
+No boolean arithmetic runs, so not one coordinate changes — the geometry on the
+slide is exactly what the font produced. A unit test asserts the invariant: the
+commands emitted are a permutation of the commands that came in.
+
+Roles are decided by **winding direction**, not by containment. TrueType winds
+a glyph's outer contours one way and its counters the other, so the sign of a
+contour's signed area separates them — and two overlapping outer contours share
+a winding, so neither can ever be mistaken for a hole in the other. An earlier
+version classified by nesting depth with a majority-vote containment test, and
+misread the crossbar of a heavy `e` as nested inside the bowl, subtracting it.
+
+One case remains that grouping cannot solve: a contour that crosses **itself**,
+which at heavy weights is common (22% of contours across the test corpus).
+There is nothing to separate, so those contours — and only those — are passed
+individually through paper.js `resolveCrossings()`, guarded by a bounding-box
+check that keeps the original if the result looks nothing like it. Resolving
+one contour is the operation these libraries are most reliable at.
+
+### opentype.js crashes on some fonts
+
+Separately, opentype.js runs OpenType feature substitution before drawing and
+throws on lookup types it does not implement. Five of eighteen test fonts hit
+it — Archivo, Chivo, Nunito, Outfit, Bricolage Grotesque — failing the entire
+insert. Where that happens the glyphs are laid out directly instead: kerning
+still applies, only ligature substitution is lost.
+
+### Measured
+
+A sweep of 18 variable families × 3 axis extremes renders the raw outlines
+under nonzero (what the font means) against the final `custGeom` under even-odd
+(what Slides shows), and pixel-diffs them:
+
+| | worst case | cases over 0.05% |
+|---|---|---|
+| whole-word boolean union | 4.73% | 22 of 54 (5 crashed outright) |
+| one shape per outer contour | **0.106%** | **1 of 54** |
+
+The remaining 0.106% is a single hairline where a stem edge lands on a pixel
+boundary — antialiasing, not geometry.
+
+## Why not a raster image## Why not a raster image
 
 An earlier draft rendered the design to PNG via an SVG `foreignObject` with the
 font inlined as a data URI. It was pixel-exact and completely inflexible: no
@@ -107,10 +159,10 @@ it was removed rather than kept as a lesser option.
   an SVG path, and rendered next to the browser's own rendering of the same
   font at the same axis values. They match, down to the near-closed `e`
   aperture Roboto Flex has at `wght 900 / wdth 151 / opsz 144`.
-- After the overlap fix, the whole chain — outlines, union, command arrays,
-  `vfBuildShapeXml`, and the path read back out of the resulting XML — was
-  rendered under **even-odd**, the rule Slides actually uses. Clean at both the
-  default instance and `wght 900 / wdth 151`.
+- The whole chain — outlines, self-intersection resolution, grouping,
+  `vfBuildShapesXml`, and the paths read back out of the resulting XML — is
+  swept across 18 families at three axis extremes each and pixel-diffed under
+  even-odd against the font's own nonzero rendering. See the table above.
 - Confirmed in Slides itself: imported shapes arrive as editable vector
   freeforms, so `Slide.insertShape(shape)` does carry custom geometry across
   presentations.

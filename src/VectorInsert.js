@@ -162,11 +162,13 @@ function vfInsertVector(payload) {
   var extWidthEmu = vfPointsToEmu(fitted.width);
   var extHeightEmu = vfPointsToEmu(fitted.height);
 
-  var shape = vfBuildShapeXml({
+  // One shape per outer contour: overlapping contours become overlapping
+  // shapes, which renders correctly whatever fill rule Slides applies.
+  var shapes = vfBuildShapesXml({
     commands: payload.commands,
     color: payload.color,
-    name: (payload.text || 'Variable type').slice(0, 60) + ' — ' + (payload.family || ''),
-    id: 2,
+    name: (payload.text || 'Variable type').slice(0, 40),
+    firstId: 2,
     offsetXEmu: Math.round((slideWidthEmu - extWidthEmu) / 2),
     offsetYEmu: Math.round((slideHeightEmu - extHeightEmu) / 2),
     extWidthEmu: extWidthEmu,
@@ -174,7 +176,7 @@ function vfInsertVector(payload) {
   });
 
   var parts = vfBuildPptxParts({
-    shapesXml: shape.xml,
+    shapesXml: shapes.xml,
     slideWidthEmu: slideWidthEmu,
     slideHeightEmu: slideHeightEmu
   });

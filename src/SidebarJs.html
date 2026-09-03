@@ -434,33 +434,170 @@
   }
 
   /**
-   * Merge overlapping contours into non-overlapping ones.
+   * Resolve contours that cross themselves.
    *
-   * TrueType glyphs are drawn assuming the nonzero winding rule, and variable
-   * fonts lean on it hard — interpolating between masters routinely leaves
-   * contours overlapping, which nonzero silently resolves. Google Slides
-   * fills imported custom geometry with the *even-odd* rule instead, so those
-   * overlaps come out punched into holes: a bite out of the `e`, notches where
-   * a bowl meets a stem.
+   * Slides fills imported geometry with the even-odd rule; TrueType glyphs are
+   * drawn for nonzero. Two *separate* contours that overlap are handled on the
+   * server by emitting them as separate shapes, which needs no arithmetic and
+   * changes no coordinate. A contour that crosses *itself* cannot be split
+   * that way — at heavy weights an `e` or an `a` is often a single
+   * self-crossing outline — and under even-odd the crossing punches a hole.
    *
-   * Uniting the contours bakes the nonzero interpretation into the geometry
-   * itself, so the result renders identically under either rule. paper.js does
-   * this on the beziers directly, so no curve is flattened to line segments.
+   * So only those contours are handed to paper.js, one at a time. An earlier
+   * version unioned the whole word at once and mangled several fonts, filling
+   * counters solid; resolving a single contour is the operation these
+   * libraries are most reliable at, and everything else passes through
+   * untouched.
    */
-  function unionCommands(commands) {
+  function resolveSelfIntersections(commands) {
     if (!window.paper) return commands;
+    var contours = splitContours(commands);
+    if (!contours.length) return commands;
+
     var scope = window.paper;
     scope.setup(document.createElement('canvas'));
     try {
-      var compound = new scope.CompoundPath(commandsToPathData(commands));
-      var resolved = compound.resolveCrossings().reorient(true, true);
-      var merged = paperToCommands(resolved);
-      compound.remove();
-      return merged.length ? merged : commands;
+      var out = [];
+      for (var i = 0; i < contours.length; i++) {
+        var contour = contours[i];
+        if (!contourSelfIntersects(contour)) {
+          out = out.concat(contour);
+          continue;
+        }
+        var resolved = resolveOneContour(scope, contour);
+        out = out.concat(resolved || contour);
+      }
+      return out;
+    } catch (error) {
+      return commands;
     } finally {
-      // Each insert sets up a fresh project; clear it so they do not pile up.
       if (scope.project) scope.project.clear();
     }
+  }
+
+  /**
+   * Run one contour through paper.js, keeping the original if the result looks
+   * nothing like it — a corrupted contour is worse than an unresolved one.
+   */
+  function resolveOneContour(scope, contour) {
+    var before = commandsBounds(contour);
+    var compound = new scope.CompoundPath(commandsToPathData(contour));
+    var resolved = compound.resolveCrossings();
+    var commands = paperToCommands(resolved);
+    if (!commands.length) return null;
+    var after = commandsBounds(commands);
+    var tolerance = Math.max(before.width, before.height) * 0.02;
+    if (Math.abs(after.width - before.width) > tolerance ||
+        Math.abs(after.height - before.height) > tolerance) {
+      return null;
+    }
+    return commands;
+  }
+
+  function splitContours(commands) {
+    var contours = [];
+    var current = null;
+    for (var i = 0; i < commands.length; i++) {
+      if (commands[i][0] === 'M') {
+        current = [commands[i]];
+        contours.push(current);
+      } else if (current) {
+        current.push(commands[i]);
+      }
+    }
+    return contours.filter(function (c) { return c.length > 1; });
+  }
+
+  function commandsBounds(commands) {
+    var b = { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity };
+    for (var i = 0; i < commands.length; i++) {
+      for (var j = 1; j < commands[i].length; j += 2) {
+        var x = commands[i][j], y = commands[i][j + 1];
+        if (typeof x !== 'number' || typeof y !== 'number') continue;
+        if (x < b.x1) b.x1 = x;
+        if (x > b.x2) b.x2 = x;
+        if (y < b.y1) b.y1 = y;
+        if (y > b.y2) b.y2 = y;
+      }
+    }
+    b.width = b.x2 - b.x1;
+    b.height = b.y2 - b.y1;
+    return b;
+  }
+
+  var VF_FLATTEN_SAMPLES = 10;
+  var VF_EPS = 1e-7;
+
+  /** Flatten a contour to a polygon, for intersection testing only. */
+  function flattenContour(contour) {
+    var points = [];
+    var current = [0, 0];
+    for (var i = 0; i < contour.length; i++) {
+      var c = contour[i];
+      if (c[0] === 'M' || c[0] === 'L') {
+        current = [c[1], c[2]];
+        points.push(current);
+      } else if (c[0] === 'C' || c[0] === 'Q') {
+        var c1, c2, end;
+        if (c[0] === 'C') {
+          c1 = [c[1], c[2]]; c2 = [c[3], c[4]]; end = [c[5], c[6]];
+        } else {
+          var q = [c[1], c[2]];
+          end = [c[3], c[4]];
+          c1 = [current[0] + (2 / 3) * (q[0] - current[0]), current[1] + (2 / 3) * (q[1] - current[1])];
+          c2 = [end[0] + (2 / 3) * (q[0] - end[0]), end[1] + (2 / 3) * (q[1] - end[1])];
+        }
+        for (var s = 1; s <= VF_FLATTEN_SAMPLES; s++) {
+          var t = s / VF_FLATTEN_SAMPLES, u = 1 - t;
+          points.push([
+            u * u * u * current[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * end[0],
+            u * u * u * current[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * end[1]
+          ]);
+        }
+        current = end;
+      }
+    }
+    // Drop repeats and the duplicated closing point, so no zero-length segment
+    // survives to register as a false crossing.
+    var clean = [];
+    for (var p = 0; p < points.length; p++) {
+      var prev = clean[clean.length - 1];
+      if (!prev || Math.abs(prev[0] - points[p][0]) > VF_EPS ||
+          Math.abs(prev[1] - points[p][1]) > VF_EPS) clean.push(points[p]);
+    }
+    while (clean.length > 1) {
+      var first = clean[0], last = clean[clean.length - 1];
+      if (Math.abs(first[0] - last[0]) < VF_EPS && Math.abs(first[1] - last[1]) < VF_EPS) clean.pop();
+      else break;
+    }
+    return clean;
+  }
+
+  function orientation(p, q, r) {
+    var v = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]);
+    return Math.abs(v) < VF_EPS ? 0 : (v > 0 ? 1 : 2);
+  }
+
+  /** Proper crossings only: shared endpoints and collinear touches do not count. */
+  function segmentsCross(a, b, c, d) {
+    var o1 = orientation(a, b, c), o2 = orientation(a, b, d);
+    var o3 = orientation(c, d, a), o4 = orientation(c, d, b);
+    if (!o1 || !o2 || !o3 || !o4) return false;
+    return o1 !== o2 && o3 !== o4;
+  }
+
+  function contourSelfIntersects(contour) {
+    var points = flattenContour(contour);
+    var n = points.length;
+    if (n < 4) return false;
+    for (var i = 0; i < n; i++) {
+      var a = points[i], b = points[(i + 1) % n];
+      for (var j = i + 2; j < n; j++) {
+        if (i === 0 && j === n - 1) continue; // adjacent across the wrap
+        if (segmentsCross(a, b, points[j], points[(j + 1) % n])) return true;
+      }
+    }
+    return false;
   }
 
   /** Command arrays -> an SVG path string, which is what paper.js parses. */
@@ -513,6 +650,61 @@
   }
 
   /**
+   * opentype.js runs OpenType feature substitution before drawing, and throws
+   * outright on lookup types it does not implement — which several Google
+   * Fonts families use (Archivo, Chivo, Nunito, Outfit, Bricolage Grotesque
+   * among them), failing the whole insert. Where that happens, lay the glyphs
+   * out directly instead: kerning still applies, only ligature substitution is
+   * lost, which Latin display type rarely misses.
+   */
+  function outlineLine(font, line, offsetX, offsetY, fontSize, options) {
+    try {
+      return font.getPath(line, offsetX, offsetY, fontSize, options).commands.map(commandToArray);
+    } catch (shaperError) {
+      var commands = [];
+      var scale = fontSize / font.unitsPerEm;
+      var tracking = (options && options.letterSpacing ? options.letterSpacing : 0) * fontSize;
+      var x = offsetX;
+      var previous = null;
+      var characters = String(line).split('');
+      for (var i = 0; i < characters.length; i++) {
+        var glyph = font.charToGlyph(characters[i]);
+        if (previous) {
+          try { x += font.getKerningValue(previous, glyph) * scale; } catch (kernError) { /* no kern table */ }
+        }
+        glyph.getPath(x, offsetY, fontSize).commands.forEach(function (command) {
+          commands.push(commandToArray(command));
+        });
+        x += glyph.advanceWidth * scale + tracking;
+        previous = glyph;
+      }
+      return commands;
+    }
+  }
+
+  /** Line width, using the same fallback as outlineLine. */
+  function measureLine(font, line, fontSize, options) {
+    try {
+      return font.getAdvanceWidth(line, fontSize, options);
+    } catch (shaperError) {
+      var scale = fontSize / font.unitsPerEm;
+      var tracking = (options && options.letterSpacing ? options.letterSpacing : 0) * fontSize;
+      var width = 0;
+      var previous = null;
+      var characters = String(line).split('');
+      for (var i = 0; i < characters.length; i++) {
+        var glyph = font.charToGlyph(characters[i]);
+        if (previous) {
+          try { width += font.getKerningValue(previous, glyph) * scale; } catch (kernError) { /* no kern table */ }
+        }
+        width += glyph.advanceWidth * scale + tracking;
+        previous = glyph;
+      }
+      return width;
+    }
+  }
+
+  /**
    * Lay the text out and return flat path commands in points, y down, first
    * baseline at y = 0 (which is what the DrawingML builder expects).
    */
@@ -529,12 +721,12 @@
     // opentype.js applies the new coordinates lazily, on the first glyph it is
     // asked to draw. Without this warm-up the advance widths below are still
     // the previous instance's. Do not remove.
-    parsedFont.getPath('A', 0, 0, spec.fontSize);
+    try { parsedFont.getPath('A', 0, 0, spec.fontSize); } catch (warmupError) { /* see outlineLine */ }
 
     var options = { kerning: true, letterSpacing: spec.tracking || 0 };
     var lines = String(spec.text).split('\n');
     var widths = lines.map(function (line) {
-      return line ? parsedFont.getAdvanceWidth(line, spec.fontSize, options) : 0;
+      return line ? measureLine(parsedFont, line, spec.fontSize, options) : 0;
     });
     var maxWidth = Math.max.apply(null, widths.concat([0]));
     var lineAdvance = spec.fontSize * ((spec.lineSpacing || 110) / 100);
@@ -545,18 +737,16 @@
       var offsetX = 0;
       if (spec.align === 'center') offsetX = (maxWidth - widths[index]) / 2;
       else if (spec.align === 'right') offsetX = maxWidth - widths[index];
-      var path = parsedFont.getPath(line, offsetX, index * lineAdvance, spec.fontSize, options);
-      path.commands.forEach(function (command) {
-        commands.push(commandToArray(command));
-      });
+      outlineLine(parsedFont, line, offsetX, index * lineAdvance, spec.fontSize, options)
+        .forEach(function (command) { commands.push(command); });
     });
 
     try {
-      return unionCommands(commands);
-    } catch (unionError) {
-      // Raw outlines still beat no outlines; the overlaps will show as
+      return resolveSelfIntersections(commands);
+    } catch (resolveError) {
+      // Raw outlines still beat no outlines; self-crossings will show as
       // even-odd artefacts, which is what the warning is for.
-      setStatus('Could not merge overlapping contours (' + unionError.message +
+      setStatus('Could not resolve self-crossing outlines (' + resolveError.message +
         '); inserting raw outlines, which may show notches.', 'warn');
       return commands;
     }
