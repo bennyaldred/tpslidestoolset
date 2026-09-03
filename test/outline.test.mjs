@@ -166,3 +166,41 @@ test('contours are split on each moveTo', () => {
   const contours = vf.vfSplitContours([...square(0, 0, 10, false), ...square(20, 20, 10, false)]);
   assert.equal(contours.length, 2);
 });
+
+// --- Explicit design-box framing (icons) ------------------------------
+// Icons must all come out the same size, so they are framed by the font's em
+// square rather than by their own ink.
+
+test('an explicit frame overrides the ink bounding box', () => {
+  const box = { x1: 0, y1: -100, x2: 100, y2: 0 };
+  const short = [['M', 20, -55], ['L', 80, -55], ['L', 80, -45], ['L', 20, -45], ['Z']];
+  const tall = [['M', 30, -90], ['L', 70, -90], ['L', 70, -10], ['L', 30, -10], ['Z']];
+
+  const a = vf.vfBuildShapesXml({ commands: short, firstId: 2, name: 'i', bounds: box });
+  const b = vf.vfBuildShapesXml({ commands: tall, firstId: 2, name: 'i', bounds: box });
+  assert.equal(a.naturalWidthEmu, vf.vfPointsToEmu(100));
+  assert.equal(a.naturalHeightEmu, vf.vfPointsToEmu(100));
+  assert.deepEqual(
+    [a.naturalWidthEmu, a.naturalHeightEmu],
+    [b.naturalWidthEmu, b.naturalHeightEmu],
+    'two icons framed by the same design box must share an extent');
+
+  // Without the frame they would differ wildly, which is the bug this prevents.
+  const inkA = vf.vfBuildShapesXml({ commands: short, firstId: 2, name: 'i' });
+  const inkB = vf.vfBuildShapesXml({ commands: tall, firstId: 2, name: 'i' });
+  assert.notEqual(inkA.naturalHeightEmu, inkB.naturalHeightEmu);
+});
+
+test('geometry is positioned relative to the supplied frame, not its own ink', () => {
+  const box = { x1: 0, y1: -100, x2: 100, y2: 0 };
+  const glyph = [['M', 20, -55], ['L', 80, -55], ['L', 80, -45], ['L', 20, -45], ['Z']];
+  const shape = vf.vfBuildShapesXml({ commands: glyph, firstId: 2, name: 'i', bounds: box });
+  // The left edge sits 20pt in from the frame, not at zero.
+  assert.match(shape.xml, new RegExp('<a:pt x="' + vf.vfPointsToEmu(20) + '"'));
+});
+
+test('vfNormalizeBounds fills in width and height', () => {
+  const b = vf.vfNormalizeBounds({ x1: -5, y1: -20, x2: 15, y2: 0 });
+  assert.equal(b.width, 20);
+  assert.equal(b.height, 20);
+});

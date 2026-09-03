@@ -211,6 +211,18 @@ function vfFlattenContour(contour) {
   return points;
 }
 
+/** Fill in width/height on a caller-supplied frame. */
+function vfNormalizeBounds(bounds) {
+  return {
+    x1: bounds.x1,
+    y1: bounds.y1,
+    x2: bounds.x2,
+    y2: bounds.y2,
+    width: bounds.x2 - bounds.x1,
+    height: bounds.y2 - bounds.y1
+  };
+}
+
 function vfPolygonArea(points) {
   var area = 0;
   for (var i = 0, j = points.length - 1; i < points.length; j = i++) {
@@ -347,14 +359,23 @@ function vfGroupContours(commands) {
  * (the whole design's bounding box), so they line up exactly when Slides
  * reassembles them — only the contours inside each path differ.
  *
+ * `bounds` overrides the frame the geometry is measured against. Text is
+ * framed by its own ink, but an icon must be framed by its design box — the
+ * em square every Material Symbol is drawn inside — or a short glyph like
+ * `remove` would be blown up to the height of a tall one, and no two icons
+ * would come out the same size.
+ *
  * @param {{commands: Array, color: string, name: string, firstId: number,
  *          offsetXEmu: number, offsetYEmu: number,
- *          extWidthEmu: (number|undefined), extHeightEmu: (number|undefined)}} options
+ *          extWidthEmu: (number|undefined), extHeightEmu: (number|undefined),
+ *          bounds: ({x1: number, y1: number, x2: number, y2: number}|undefined)}} options
  * @return {{xml: string, count: number, widthEmu: number, heightEmu: number,
  *           naturalWidthEmu: number, naturalHeightEmu: number}}
  */
 function vfBuildShapesXml(options) {
-  var bounds = vfCommandsBounds(options.commands);
+  var bounds = options.bounds
+    ? vfNormalizeBounds(options.bounds)
+    : vfCommandsBounds(options.commands);
   var naturalWidthEmu = Math.max(1, vfPointsToEmu(bounds.width));
   var naturalHeightEmu = Math.max(1, vfPointsToEmu(bounds.height));
   var widthEmu = Math.max(1, Math.round(options.extWidthEmu || naturalWidthEmu));
@@ -412,6 +433,7 @@ if (typeof module !== 'undefined' && module.exports) {
     vfPointsToEmu: vfPointsToEmu,
     vfEscapeXml: vfEscapeXml,
     vfCommandsBounds: vfCommandsBounds,
+    vfNormalizeBounds: vfNormalizeBounds,
     vfCommandsToPathXml: vfCommandsToPathXml,
     vfBuildShapesXml: vfBuildShapesXml,
     vfSplitContours: vfSplitContours,

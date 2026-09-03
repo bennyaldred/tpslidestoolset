@@ -53,6 +53,20 @@ function apiBootstrap() {
   });
 }
 
+/** The Material Symbols icon list, styles and axes. */
+function apiIconCatalog() {
+  return vfWrap(function () {
+    var catalog = vfGetIconCatalog();
+    return {
+      icons: catalog.icons,
+      styles: catalog.styles,
+      axes: catalog.axes,
+      source: catalog.source,
+      warning: catalog.warning
+    };
+  });
+}
+
 function apiInsertVector(payload) {
   return vfWrap(function () { return vfInsertVector(payload); });
 }

@@ -7,8 +7,14 @@
   </head>
   <body>
     <div id="app" class="app">
+      <div class="tabs" id="tabs" role="tablist">
+        <button type="button" class="tab is-active" data-panel="type" role="tab">Type</button>
+        <button type="button" class="tab" data-panel="icons" role="tab">Icons</button>
+      </div>
+
       <div id="status" class="status" hidden></div>
 
+      <div id="panel-type">
       <section class="block">
         <label class="label" for="text">Text</label>
         <textarea id="text" class="textarea" rows="2" spellcheck="false">Variable</textarea>
@@ -68,6 +74,49 @@
         <div class="hint">Inserted as native Slides vector shapes, grouped. Every
           axis is exact; the result is artwork, not editable text.</div>
       </section>
+      </div>
+
+      <div id="panel-icons" hidden>
+        <section class="block">
+          <label class="label" for="icon-style">Style</label>
+          <select id="icon-style" class="select-one"></select>
+        </section>
+
+        <section class="block">
+          <label class="label" for="icon-search">Icon</label>
+          <input id="icon-search" class="input" type="search" placeholder="Search 4,000+ icons…" autocomplete="off">
+          <div id="icon-grid" class="icon-grid" role="listbox" aria-label="Icons"></div>
+          <div id="icon-meta" class="hint"></div>
+        </section>
+
+        <section class="block">
+          <div class="row-between">
+            <span class="label">Axes</span>
+            <button id="icon-reset-axes" class="link-btn" type="button">Reset</button>
+          </div>
+          <div id="icon-axes"></div>
+        </section>
+
+        <section class="block">
+          <span class="label">Icon settings</span>
+          <div class="grid-2">
+            <label class="field">
+              <span class="field-label">Size (pt)</span>
+              <input id="icon-size" class="input" type="number" min="4" max="400" step="1" value="48">
+            </label>
+            <label class="field">
+              <span class="field-label">Colour</span>
+              <input id="icon-color" class="input color" type="color" value="#1a1a1a">
+            </label>
+          </div>
+        </section>
+
+        <section class="block actions">
+          <button id="icon-insert" class="btn btn-primary" type="button" disabled>Insert icon</button>
+          <div class="hint">Every icon inserts on the same square, so a full-height
+            icon and a short one come out the same size.</div>
+        </section>
+      </div>
     </div>
 
     <?!= include('SidebarJs'); ?>

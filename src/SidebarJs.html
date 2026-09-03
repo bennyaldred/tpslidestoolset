@@ -335,7 +335,7 @@
    * Google Fonts splits a family across latin / latin-ext / cyrillic / … and we
    * only want to download the one we need.
    */
-  function pickSubsetUrl(css, text) {
+  function pickSubsetUrl(css, text, wantItalic) {
     var codepoints = [];
     for (var i = 0; i < text.length; i++) {
       var code = text.codePointAt(i);
@@ -347,7 +347,7 @@
       var block = blocks[b];
       // Skip italic faces unless the design asks for one.
       var isItalic = /font-style:\s*italic/.test(block);
-      if (isItalic !== (state.values.ital >= 0.5)) continue;
+      if (isItalic !== !!wantItalic) continue;
       var src = block.match(/src:\s*url\(([^)]+)\)/);
       if (!src) continue;
       if (!fallback) fallback = src[1];
@@ -358,12 +358,18 @@
     return fallback;
   }
 
-  function fontCacheKey(family) {
-    return family + '|' + (state.values.ital >= 0.5 ? 'italic' : 'normal');
+  function fontCacheKey(family, italic) {
+    return family + '|' + (italic ? 'italic' : 'normal');
   }
 
-  function loadFontBinary(font, text) {
-    var key = fontCacheKey(font.family);
+  /**
+   * Fetch and parse a font binary for outlining.
+   *
+   * `italic` is passed in rather than read from the type tab's state: the
+   * icons tab shares this loader, and Material Symbols has no italic face.
+   */
+  function loadFontBinary(font, text, italic) {
+    var key = fontCacheKey(font.family, italic);
     if (fontBinaryCache[key]) return Promise.resolve(fontBinaryCache[key]);
 
     return ensureLibs()
@@ -374,7 +380,7 @@
         });
       })
       .then(function (css) {
-        var url = pickSubsetUrl(css, text);
+        var url = pickSubsetUrl(css, text, italic);
         if (!url) throw new Error('No usable font file was listed for ' + font.family + '.');
         return fetch(url);
       })
@@ -737,7 +743,7 @@
 
     busy(true);
     setStatus('Building vector outlines…');
-    loadFontBinary(state.font, spec.text)
+    loadFontBinary(state.font, spec.text, state.values.ital >= 0.5)
       .then(function (loadedFont) {
         var commands = buildOutlines(loadedFont, spec);
         if (!commands.length) throw new Error('That text produced no visible outlines.');
@@ -815,18 +821,312 @@
     });
   }
 
+
+  // =====================================================================
+  // Icons tab
+  // =====================================================================
+  //
+  // Material Symbols is a variable icon font, so the whole vector pipeline
+  // applies unchanged: shape a codepoint, outline it, ship the paths. The one
+  // difference is framing — see iconFrame.
+
+  var iconState = {
+    icons: [],
+    styles: [],
+    axes: [],
+    values: {},
+    style: null,
+    selected: null,
+    loaded: false,
+    rendered: 0
+  };
+
+  /** Icons are added to the grid in batches as it is scrolled. */
+  var ICON_BATCH = 120;
+
+  function iconMatches(filter) {
+    var needle = (filter || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    if (!needle) return iconState.icons;
+    var starts = [];
+    var contains = [];
+    for (var i = 0; i < iconState.icons.length; i++) {
+      var name = iconState.icons[i].name;
+      var at = name.indexOf(needle);
+      if (at === 0) starts.push(iconState.icons[i]);
+      else if (at > 0) contains.push(iconState.icons[i]);
+    }
+    // Prefix matches first: searching "home" should not bury it under
+    // "add_home_work".
+    return starts.concat(contains);
+  }
+
+  function renderIconGrid(reset) {
+    var grid = els.iconGrid;
+    if (reset) {
+      grid.innerHTML = '';
+      iconState.rendered = 0;
+      iconState.matches = iconMatches(els.iconSearch.value);
+      grid.scrollTop = 0;
+    }
+    var matches = iconState.matches || [];
+    if (!matches.length) {
+      grid.innerHTML = '<div class="icon-empty">No icon matches that name.</div>';
+      els.iconMeta.textContent = '0 of ' + iconState.icons.length + ' icons';
+      return;
+    }
+    var end = Math.min(matches.length, iconState.rendered + ICON_BATCH);
+    var fragment = document.createDocumentFragment();
+    for (var i = iconState.rendered; i < end; i++) {
+      var icon = matches[i];
+      var cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'icon-cell' +
+        (iconState.selected && iconState.selected.name === icon.name ? ' is-selected' : '');
+      cell.title = icon.name.replace(/_/g, ' ');
+      cell.dataset.name = icon.name;
+      cell.textContent = String.fromCodePoint(parseInt(icon.cp, 16));
+      fragment.appendChild(cell);
+    }
+    grid.appendChild(fragment);
+    iconState.rendered = end;
+    els.iconMeta.textContent = matches.length + ' of ' + iconState.icons.length +
+      ' icons' + (iconState.selected ? ' · ' + iconState.selected.name.replace(/_/g, ' ') : '');
+  }
+
+  function currentIconStyle() {
+    return iconState.styles.filter(function (style) {
+      return style.family === iconState.style;
+    })[0] || iconState.styles[0];
+  }
+
+  /** Point the grid's webfont at the selected style, with its axes live. */
+  function ensureIconFont() {
+    var style = currentIconStyle();
+    if (!style) return;
+    var id = 'vf-icon-css';
+    var link = document.getElementById(id);
+    if (!link) {
+      link = document.createElement('link');
+      link.id = id;
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+    var url = buildFontCssUrl(style.family, iconState.axes);
+    if (link.getAttribute('href') !== url) {
+      link.setAttribute('href', url);
+      // Hide the cells until the webfont lands, so they do not flash rows of
+      // unresolved private-use characters. Always time out: a grid that stays
+      // blank because the font never arrived is worse than tofu.
+      els.iconGrid.classList.add('is-loading');
+      var reveal = function () { els.iconGrid.classList.remove('is-loading'); };
+      setTimeout(reveal, 5000);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(reveal);
+      else reveal();
+    }
+    els.iconGrid.style.fontFamily = '"' + style.family + '"';
+    els.iconGrid.style.fontVariationSettings = iconState.axes.map(function (axis) {
+      return '"' + axis.tag + '" ' + round(iconState.values[axis.tag], 3);
+    }).join(', ');
+  }
+
+  function renderIconAxes() {
+    els.iconAxes.innerHTML = '';
+    iconState.axes.forEach(function (axis) {
+      var info = axisInfo(axis.tag);
+      var wrap = document.createElement('div');
+      wrap.className = 'axis';
+
+      var head = document.createElement('div');
+      head.className = 'axis-head';
+      head.innerHTML = '<span><span class="axis-name"></span> <span class="axis-tag"></span></span>';
+      head.querySelector('.axis-name').textContent = info.name;
+      head.querySelector('.axis-tag').textContent = axis.tag;
+
+      var number = document.createElement('input');
+      number.className = 'axis-value';
+      number.type = 'number';
+      number.min = axis.min;
+      number.max = axis.max;
+      number.step = info.step;
+      number.value = round(iconState.values[axis.tag], info.precision);
+      head.appendChild(number);
+      wrap.appendChild(head);
+
+      var slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = axis.min;
+      slider.max = axis.max;
+      slider.step = info.step;
+      slider.value = iconState.values[axis.tag];
+      wrap.appendChild(slider);
+
+      function apply(value, syncSlider, syncNumber) {
+        var clamped = Math.min(axis.max, Math.max(axis.min, Number(value)));
+        if (isNaN(clamped)) return;
+        iconState.values[axis.tag] = clamped;
+        if (syncSlider) slider.value = clamped;
+        if (syncNumber) number.value = round(clamped, info.precision);
+        ensureIconFont();
+      }
+      slider.addEventListener('input', function () { apply(slider.value, false, true); });
+      number.addEventListener('change', function () { apply(number.value, true, false); });
+
+      els.iconAxes.appendChild(wrap);
+    });
+  }
+
+  function resetIconAxes() {
+    iconState.axes.forEach(function (axis) {
+      iconState.values[axis.tag] = axis.defaultValue;
+    });
+    renderIconAxes();
+    ensureIconFont();
+  }
+
+  /**
+   * The design box every Material Symbol is drawn inside: the em square,
+   * sitting on the baseline. Framing by this rather than by the glyph's ink is
+   * what makes every icon insert at the same size — `remove` is a 2pt-tall bar
+   * and `fullscreen` fills the box, and both must land as the same square.
+   */
+  function iconFrame(sizePt) {
+    return { x1: 0, y1: -sizePt, x2: sizePt, y2: 0 };
+  }
+
+  function loadIcons() {
+    if (iconState.loaded) return Promise.resolve();
+    setStatus('Loading icons…');
+    return call('apiIconCatalog').then(function (result) {
+      iconState.icons = result.icons || [];
+      iconState.styles = result.styles || [];
+      iconState.axes = result.axes || [];
+      iconState.style = iconState.styles.length ? iconState.styles[0].family : null;
+      iconState.axes.forEach(function (axis) {
+        iconState.values[axis.tag] = axis.defaultValue;
+      });
+
+      els.iconStyle.innerHTML = '';
+      iconState.styles.forEach(function (style) {
+        var option = document.createElement('option');
+        option.value = style.family;
+        option.textContent = style.label;
+        els.iconStyle.appendChild(option);
+      });
+
+      iconState.loaded = true;
+      renderIconAxes();
+      ensureIconFont();
+      renderIconGrid(true);
+      setStatus(result.warning || '', result.warning ? 'warn' : '');
+    });
+  }
+
+  function insertIcon() {
+    if (!iconState.selected) { setStatus('Pick an icon first.', 'error'); return; }
+    var style = currentIconStyle();
+    var sizePt = Number(els.iconSize.value) || 48;
+    var character = String.fromCodePoint(parseInt(iconState.selected.cp, 16));
+
+    busy(true);
+    setStatus('Building icon outlines…');
+    loadFontBinary({ family: style.family, axes: iconState.axes }, character, false)
+      .then(function (loadedFont) {
+        var commands = buildOutlines(loadedFont, {
+          values: iconState.values,
+          text: character,
+          fontSize: sizePt,
+          tracking: 0,
+          lineSpacing: 100,
+          align: 'left'
+        });
+        if (!commands.length) {
+          throw new Error('That icon produced no outlines. Try another style.');
+        }
+        return call('apiInsertVector', {
+          commands: commands,
+          color: els.iconColor.value,
+          text: iconState.selected.name,
+          family: style.family,
+          frame: iconFrame(sizePt)
+        });
+      })
+      .then(function (result) {
+        var suffix = result.scale && result.scale < 0.999
+          ? ' Scaled to ' + Math.round(result.scale * 100) + '% to fit the slide.'
+          : '';
+        setStatus(result.message + suffix, 'ok');
+      })
+      .catch(function (error) { setStatus(error.message, 'error'); })
+      .then(function () { busy(false); });
+  }
+
+  function showPanel(name) {
+    Array.prototype.forEach.call(els.tabs.querySelectorAll('.tab'), function (tab) {
+      tab.classList.toggle('is-active', tab.dataset.panel === name);
+    });
+    els.panelType.hidden = name !== 'type';
+    els.panelIcons.hidden = name !== 'icons';
+    setStatus('');
+    if (name === 'icons') {
+      // Deferred until the tab is opened: the icon font is a few megabytes.
+      loadIcons().catch(function (error) {
+        setStatus('Could not load icons: ' + error.message, 'error');
+      });
+    }
+  }
+
+  function initIcons() {
+    els.tabs.addEventListener('click', function (event) {
+      var tab = event.target.closest('.tab');
+      if (tab) showPanel(tab.dataset.panel);
+    });
+
+    els.iconSearch.addEventListener('input', debounce(function () {
+      renderIconGrid(true);
+    }, 120));
+
+    els.iconGrid.addEventListener('click', function (event) {
+      var cell = event.target.closest('.icon-cell');
+      if (!cell) return;
+      iconState.selected = iconState.icons.filter(function (icon) {
+        return icon.name === cell.dataset.name;
+      })[0] || null;
+      Array.prototype.forEach.call(els.iconGrid.querySelectorAll('.icon-cell'), function (other) {
+        other.classList.toggle('is-selected', other === cell);
+      });
+      els.iconInsert.disabled = !iconState.selected;
+      els.iconMeta.textContent = (iconState.matches || []).length + ' of ' +
+        iconState.icons.length + ' icons · ' + cell.dataset.name.replace(/_/g, ' ');
+    });
+
+    els.iconGrid.addEventListener('scroll', function () {
+      var grid = els.iconGrid;
+      if (grid.scrollTop + grid.clientHeight > grid.scrollHeight - 120) renderIconGrid(false);
+    });
+
+    els.iconStyle.addEventListener('change', function () {
+      iconState.style = els.iconStyle.value;
+      ensureIconFont();
+    });
+    els.iconResetAxes.addEventListener('click', resetIconAxes);
+    els.iconInsert.addEventListener('click', insertIcon);
+  }
+
   // ------------------------------------------------------------ bootstrap
 
   function init() {
     [
       'app', 'status', 'text', 'font-search', 'font-select', 'font-meta', 'preview',
       'preview-hint', 'axes', 'reset-axes', 'font-size', 'tracking', 'line-height',
-      'color', 'align', 'insert'
+      'color', 'align', 'insert',
+      'tabs', 'panel-type', 'panel-icons', 'icon-style', 'icon-search', 'icon-grid',
+      'icon-meta', 'icon-axes', 'icon-reset-axes', 'icon-size', 'icon-color', 'icon-insert'
     ].forEach(function (id) {
       els[id.replace(/-(\w)/g, function (_, c) { return c.toUpperCase(); })] = $(id);
     });
 
     wireSegment(els.align);
+    initIcons();
 
     els.fontSearch.addEventListener('input', function () {
       renderFontList(els.fontSearch.value);

@@ -91,6 +91,11 @@
     line-height: 1.1;
     color: #1a1a1a;
     /* Sized in JS so the preview tracks the real point size, scaled to fit. */
+
+    /* Left on "auto", the browser derives opsz from the rendered size, which
+       would quietly disagree with the opsz slider — and with the geometry that
+       actually gets inserted. */
+    font-optical-sizing: none;
   }
 
   /* --- Axis sliders --------------------------------------------------- */
@@ -154,4 +159,79 @@
   .status.is-ok { background: var(--ok-bg); color: var(--ok-fg); }
 
   .is-busy { opacity: .6; pointer-events: none; }
+</style>
+<style>
+  /* --- Tabs ------------------------------------------------------------ */
+  .tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--line);
+    margin: -4px 0 14px;
+  }
+  .tab {
+    flex: 1;
+    padding: 8px 6px;
+    font: inherit;
+    font-size: 13px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .tab:hover { color: var(--fg); }
+  .tab.is-active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+
+  .select-one {
+    width: 100%;
+    font: inherit;
+    color: var(--fg);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 6px 8px;
+  }
+  .select-one:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+  /* --- Icon grid -------------------------------------------------------- */
+  .icon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+    gap: 2px;
+    margin-top: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 4px;
+    /* The glyphs are drawn by the live variable font, so the grid previews the
+       exact axis settings that will be inserted. */
+    font-family: 'Material Symbols Outlined';
+    font-size: 22px;
+    line-height: 1;
+    /* As above: the opsz slider must win, not the 22px cell size. */
+    font-optical-sizing: none;
+  }
+  .icon-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    color: var(--fg);
+    font: inherit;
+    padding: 0;
+    /* Until the webfont arrives the cell would show the raw private-use
+       character; hide that rather than flash mojibake. */
+    overflow: hidden;
+  }
+  .icon-cell:hover { background: var(--accent-weak); }
+  .icon-cell.is-selected { border-color: var(--accent); background: var(--accent-weak); }
+  .icon-grid.is-loading { color: transparent; }
+
+  .icon-empty { grid-column: 1 / -1; padding: 14px 6px; text-align: center; color: var(--muted); font-size: 11px; font-family: 'Google Sans', Roboto, Arial, sans-serif; }
 </style>

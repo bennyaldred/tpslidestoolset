@@ -215,7 +215,7 @@ function vfFetchCatalogFromGoogle() {
   return catalog;
 }
 
-function vfCachePut(cache, key, text) {
+function vfCachePut(cache, key, text, ttlSeconds) {
   var chunks = [];
   for (var offset = 0; offset < text.length; offset += VF_CACHE_CHUNK_SIZE) {
     chunks.push(text.substring(offset, offset + VF_CACHE_CHUNK_SIZE));
@@ -225,7 +225,7 @@ function vfCachePut(cache, key, text) {
     map[key + '-' + i] = chunks[i];
   }
   map[key + '-count'] = String(chunks.length);
-  cache.putAll(map, VF_CACHE_TTL_SECONDS);
+  cache.putAll(map, ttlSeconds || VF_CACHE_TTL_SECONDS);
 }
 
 function vfCacheGet(cache, key) {

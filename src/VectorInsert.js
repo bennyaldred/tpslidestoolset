@@ -171,7 +171,11 @@ function vfInsertVector(payload) {
   }
 
   var presentation = SlidesApp.getActivePresentation();
-  var bounds = vfCommandsBounds(payload.commands);
+  // Icons carry an explicit design box so every one comes out the same size;
+  // text is framed by its own ink.
+  var bounds = payload.frame
+    ? vfNormalizeBounds(payload.frame)
+    : vfCommandsBounds(payload.commands);
   if (!bounds.width || !bounds.height) {
     throw new Error('The outlines are empty — check that the text has visible characters.');
   }
@@ -192,7 +196,8 @@ function vfInsertVector(payload) {
     offsetXEmu: Math.round((slideWidthEmu - extWidthEmu) / 2),
     offsetYEmu: Math.round((slideHeightEmu - extHeightEmu) / 2),
     extWidthEmu: extWidthEmu,
-    extHeightEmu: extHeightEmu
+    extHeightEmu: extHeightEmu,
+    bounds: payload.frame ? bounds : undefined
   });
 
   var parts = vfBuildPptxParts({

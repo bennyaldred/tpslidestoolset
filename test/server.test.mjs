@@ -128,5 +128,36 @@ test('apiInsertVector reports errors instead of throwing', () => {
 test('the API surface is exactly what the sidebar calls', () => {
   const vf = makeContext();
   const exposed = Array.from(Object.keys(vf)).filter(k => k.startsWith('api')).sort();
-  assert.deepEqual(exposed, ['apiBootstrap', 'apiInsertVector']);
+  assert.deepEqual(exposed, ['apiBootstrap', 'apiIconCatalog', 'apiInsertVector']);
+});
+
+test('apiIconCatalog falls back to the bundled icons offline', () => {
+  const vf = makeContext();
+  const result = vf.apiIconCatalog();
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.source, 'bundled');
+  assert.ok(result.icons.length >= 50);
+  assert.ok(result.warning);
+  assert.deepEqual(Array.from(result.styles, s => s.label), ['Outlined', 'Rounded', 'Sharp']);
+  assert.deepEqual(Array.from(result.axes, a => a.tag), ['FILL', 'GRAD', 'opsz', 'wght']);
+});
+
+test('apiIconCatalog parses the published codepoints file', () => {
+  const body = 'home e9b2\nsearch ef7a\nnot_a_pair\n10k e951\n';
+  const vf = makeContext({
+    fetch: () => ({ getResponseCode: () => 200, getContentText: () => body })
+  });
+  const result = vf.apiIconCatalog();
+  assert.equal(result.source, 'material-design-icons');
+  assert.deepEqual(Array.from(result.icons, i => i.name), ['home', 'search', '10k']);
+  assert.equal(result.icons[0].cp, 'e9b2');
+  assert.equal(result.warning, undefined);
+});
+
+test('every bundled icon has a plausible codepoint', () => {
+  const vf = makeContext();
+  for (const icon of vf.apiIconCatalog().icons) {
+    assert.match(icon.name, /^[a-z0-9_]+$/, icon.name);
+    assert.match(icon.cp, /^[0-9a-f]{4,6}$/, icon.name + ' -> ' + icon.cp);
+  }
 });

@@ -23,6 +23,7 @@ const read = name => readFileSync(join(src, name), 'utf8');
 const SERVER_FILES = [
   'AxisRegistry.js',
   'FontCatalog.js',
+  'IconCatalog.js',
   'Outline.js',
   'Pptx.js',
   'VectorInsert.js',

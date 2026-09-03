@@ -122,6 +122,10 @@ touches (the Google Fonts catalogue, and Drive for the vector conversion).
 
 ## Using it
 
+The sidebar has two tabs.
+
+### Type
+
 - **Typeface** — every variable family on Google Fonts (~2000), fetched live
   with its real axis ranges. Opens on **Google Sans Flex**. Falls back to a
   bundled list if the fetch fails.
@@ -129,6 +133,24 @@ touches (the Google Fonts catalogue, and Drive for the vector conversion).
 - **Type settings** — size, tracking, line height, colour, alignment.
 - **Insert vector outlines** — drops the design on the current slide as a group
   of vector shapes.
+
+### Icons
+
+The same pipeline applied to [Material Symbols](https://fonts.google.com/icons),
+which is a variable icon font — so every icon comes in as vector shapes, not a
+picture, with its axes live.
+
+- **Style** — Outlined, Rounded or Sharp.
+- **Icon** — pick from the grid, or search by name. The full set is ~4,300
+  icons, fetched from Google's published codepoints list; a common subset is
+  bundled for when that is unreachable.
+- **Axes** — `FILL`, `GRAD`, `opsz` and `wght`, previewed live in the grid.
+- **Insert icon** — every icon is framed by the font's em square rather than by
+  its own ink, so a full-height icon and a short one like `remove` come out
+  exactly the same size.
+
+The icon font is a few megabytes, so it is only fetched when the tab is first
+opened.
 
 ## Development
 

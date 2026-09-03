@@ -53,6 +53,26 @@ const FIXTURE_FONTS = [
   ] }
 ];
 
+const FIXTURE_ICONS = [
+  ['search','ef7a'], ['home','e9b2'], ['settings','e8b8'], ['menu','e5d2'],
+  ['close','e5cd'], ['check','e668'], ['check_circle','f0be'], ['add','e145'],
+  ['remove','e15b'], ['delete','e92e'], ['edit','f097'], ['star','e838'],
+  ['favorite','e87d'], ['share','e80d'], ['download','f090'], ['folder','e2c7'],
+  ['person','e7fd'], ['lock','e897'], ['mail','e158'], ['more_vert','e5d4'],
+  ['add_home_work','f6b1'], ['fullscreen','e5d0']
+];
+const FIXTURE_ICON_STYLES = [
+  { family: 'Material Symbols Outlined', label: 'Outlined' },
+  { family: 'Material Symbols Rounded', label: 'Rounded' },
+  { family: 'Material Symbols Sharp', label: 'Sharp' }
+];
+const FIXTURE_ICON_AXES = [
+  { tag: 'FILL', min: 0, max: 1, defaultValue: 0 },
+  { tag: 'GRAD', min: -50, max: 200, defaultValue: 0 },
+  { tag: 'opsz', min: 20, max: 48, defaultValue: 24 },
+  { tag: 'wght', min: 100, max: 700, defaultValue: 400 }
+];
+
 const mock = `
 <script>
 ${read('AxisRegistry.js')}
@@ -62,11 +82,20 @@ ${read('AxisRegistry.js')}
    presentation is logged instead. */
 (function () {
   var FONTS = ${JSON.stringify(FIXTURE_FONTS, null, 2)};
+  var ICONS = ${JSON.stringify(FIXTURE_ICONS)};
+  var STYLES = ${JSON.stringify(FIXTURE_ICON_STYLES)};
+  var ICON_AXES = ${JSON.stringify(FIXTURE_ICON_AXES)};
   var handlers = {
     apiBootstrap: function () {
       return { ok: true, fonts: FONTS, source: 'preview-fixture',
                axisRegistry: VF_AXIS_REGISTRY,
                warning: 'Local preview — using fixture fonts and a mock backend.' };
+    },
+    apiIconCatalog: function () {
+      var icons = ICONS.map(function (pair) { return { name: pair[0], cp: pair[1] }; });
+      return { ok: true, icons: icons, styles: STYLES, axes: ICON_AXES,
+               source: 'preview-fixture',
+               warning: 'Local preview — a small fixture icon set.' };
     },
     apiInsertVector: function (payload) {
       console.log('[preview] insert vector', payload.commands.length, 'commands');
