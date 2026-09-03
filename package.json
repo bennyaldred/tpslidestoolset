@@ -1,0 +1,16 @@
+{
+  "name": "slides-variable-font",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Google Slides add-on for designing with variable typefaces and inserting the result as an editable Slides shape.",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "preview": "node tools/build-preview.mjs && echo 'Open dist/preview.html in a browser.'",
+    "push": "clasp push",
+    "open": "clasp open"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.4.2",
+    "fast-xml-parser": "^5.0.0"
+  }
+}

@@ -1,0 +1,189 @@
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f1f1f;
+    --muted: #5f6368;
+    --line: #dadce0;
+    --accent: #1a73e8;
+    --accent-weak: #e8f0fe;
+    --warn-bg: #fef7e0;
+    --warn-fg: #7a5900;
+    --err-bg: #fce8e6;
+    --err-fg: #a50e0e;
+    --ok-bg: #e6f4ea;
+    --ok-fg: #137333;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 12px 12px 32px;
+    font: 13px/1.45 'Google Sans', Roboto, Arial, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+  }
+
+  .block { margin-bottom: 18px; }
+  .block:last-child { margin-bottom: 0; }
+
+  .label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .row { display: flex; gap: 6px; align-items: center; }
+  .row-between { display: flex; justify-content: space-between; align-items: baseline; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+
+  .field { display: block; }
+  .field-label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+
+  .input, .select, .textarea, .select-inline {
+    width: 100%;
+    font: inherit;
+    color: var(--fg);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 6px 8px;
+  }
+  .textarea { resize: vertical; font-size: 13px; }
+  .input:focus, .select:focus, .textarea:focus, .select-inline:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .input.color { padding: 2px; height: 32px; cursor: pointer; }
+  .select { margin-top: 6px; }
+  .select-inline { flex: 1; min-width: 0; }
+
+  .hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+  .link-btn {
+    background: none; border: none; padding: 0;
+    color: var(--accent); font: inherit; font-size: 11px; cursor: pointer;
+  }
+  .link-btn:hover { text-decoration: underline; }
+
+  /* --- Preview ------------------------------------------------------- */
+  .preview-frame {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background:
+      linear-gradient(45deg, #f3f3f3 25%, transparent 25%, transparent 75%, #f3f3f3 75%),
+      linear-gradient(45deg, #f3f3f3 25%, #fff 25%, #fff 75%, #f3f3f3 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 6px 6px;
+    overflow: auto;
+    min-height: 96px;
+    max-height: 220px;
+    display: flex;
+    align-items: center;
+    padding: 10px;
+  }
+  .preview {
+    white-space: pre;
+    line-height: 1.1;
+    color: #1a1a1a;
+    /* Sized in JS so the preview tracks the real point size, scaled to fit. */
+  }
+
+  /* --- Axis sliders --------------------------------------------------- */
+  .axis { margin-bottom: 10px; }
+  .axis-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 11px; margin-bottom: 2px;
+  }
+  .axis-name { color: var(--fg); font-weight: 500; }
+  .axis-tag { color: var(--muted); font-family: 'Roboto Mono', monospace; font-size: 10px; }
+  .axis-value {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    border: none; background: none; text-align: right; width: 62px; padding: 0;
+  }
+  .axis-value:focus { outline: 1px solid var(--accent); border-radius: 2px; }
+  .axis input[type=range] { width: 100%; margin: 0; accent-color: var(--accent); }
+  .axis-unmapped .axis-name::after {
+    content: 'outline only';
+    margin-left: 6px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: #f1f3f4;
+    border-radius: 8px;
+    padding: 1px 5px;
+  }
+
+  /* --- Segmented control ---------------------------------------------- */
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .seg-btn {
+    flex: 1; padding: 6px 4px; font: inherit; font-size: 12px;
+    background: #fff; border: none; border-right: 1px solid var(--line);
+    color: var(--muted); cursor: pointer;
+  }
+  .seg-btn:last-child { border-right: none; }
+  .seg-btn.is-active { background: var(--accent-weak); color: var(--accent); font-weight: 500; }
+
+  /* --- Fidelity report ------------------------------------------------ */
+  .fidelity { margin-top: 8px; }
+  .fid-row {
+    display: flex; align-items: baseline; gap: 6px;
+    font-size: 11px; padding: 3px 0; border-top: 1px solid #f1f3f4;
+  }
+  .fid-row:first-child { border-top: none; }
+  .fid-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .fid-exact .fid-dot { background: #34a853; }
+  .fid-approximate .fid-dot { background: #f9ab00; }
+  .fid-dropped .fid-dot { background: #d93025; }
+  .fid-name { font-weight: 500; flex: none; }
+  .fid-detail { color: var(--muted); }
+
+  /* --- Buttons -------------------------------------------------------- */
+  .actions { position: sticky; bottom: 0; background: var(--bg); padding-top: 6px; }
+  .btn {
+    flex: 1;
+    font: inherit; font-size: 12px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .btn:hover:not(:disabled) { background: #f8f9fa; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn-small { flex: none; padding: 6px 10px; }
+  .btn-primary {
+    width: 100%;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 500;
+    padding: 10px;
+    margin-bottom: 6px;
+  }
+  .btn-primary:hover:not(:disabled) { background: #1765cc; }
+
+  .check { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .check input { margin: 2px 0 0; }
+
+  /* --- Status --------------------------------------------------------- */
+  .status {
+    padding: 7px 9px; border-radius: 4px; font-size: 12px; margin-bottom: 12px;
+    background: var(--accent-weak); color: var(--accent);
+  }
+  .status.is-error { background: var(--err-bg); color: var(--err-fg); }
+  .status.is-warn { background: var(--warn-bg); color: var(--warn-fg); }
+  .status.is-ok { background: var(--ok-bg); color: var(--ok-fg); }
+
+  .is-busy { opacity: .6; pointer-events: none; }
+</style>
