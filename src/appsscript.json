@@ -7,8 +7,7 @@
     "https://www.googleapis.com/auth/presentations",
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/script.container.ui",
-    "https://www.googleapis.com/auth/script.external_request",
-    "https://www.googleapis.com/auth/script.storage"
+    "https://www.googleapis.com/auth/script.external_request"
   ],
   "urlFetchWhitelist": [
     "https://fonts.google.com/metadata/",

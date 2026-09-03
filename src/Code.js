@@ -54,47 +54,6 @@ function apiBootstrap() {
   });
 }
 
-function apiRefreshFonts() {
-  return vfWrap(function () {
-    var catalog = vfGetCatalog(true);
-    return { fonts: catalog.fonts, source: catalog.source, warning: catalog.warning };
-  });
-}
-
-/** Preview the Slides mapping without touching the presentation. */
-function apiResolveStyle(spec) {
-  return vfWrap(function () {
-    return {
-      resolved: vfResolveSlidesStyle({
-        family: spec.family,
-        axes: spec.axes,
-        values: spec.values,
-        allowFauxItalic: spec.allowFauxItalic
-      })
-    };
-  });
-}
-
-function apiInsertTextShape(spec) {
-  return vfWrap(function () { return vfInsertTextShape(spec); });
-}
-
 function apiInsertVector(payload) {
   return vfWrap(function () { return vfInsertVector(payload); });
-}
-
-function apiApplyToSelection(spec) {
-  return vfWrap(function () { return vfApplyToSelection(spec); });
-}
-
-function apiLoadFromSelection() {
-  return vfWrap(function () { return vfLoadFromSelection(); });
-}
-
-function apiSavePreset(name, spec) {
-  return vfWrap(function () { return { presets: vfSavePreset(name, spec) }; });
-}
-
-function apiDeletePreset(name) {
-  return vfWrap(function () { return { presets: vfDeletePreset(name) }; });
 }

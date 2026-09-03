@@ -22,13 +22,10 @@ const read = name => readFileSync(join(src, name), 'utf8');
 /** Logical reading order; Apps Script does not care, but people do. */
 const SERVER_FILES = [
   'AxisRegistry.js',
-  'FontMapping.js',
   'FontCatalog.js',
   'Outline.js',
   'Pptx.js',
-  'Insert.js',
   'VectorInsert.js',
-  'Settings.js',
   'Code.js'
 ];
 

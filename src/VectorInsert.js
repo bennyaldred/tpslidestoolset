@@ -12,6 +12,26 @@
  * "export SVG, paste into PowerPoint, upload, copy across" workflow.
  */
 
+/**
+ * The slide the user is looking at, falling back to the first one when the
+ * selection does not resolve to a slide (a master or layout, say).
+ */
+function vfActiveSlide() {
+  var presentation = SlidesApp.getActivePresentation();
+  var selection = presentation.getSelection();
+  if (selection) {
+    var page = selection.getCurrentPage();
+    if (page && page.getPageType() === SlidesApp.PageType.SLIDE) {
+      return page.asSlide();
+    }
+  }
+  var slides = presentation.getSlides();
+  if (!slides.length) {
+    throw new Error('This presentation has no slides to insert into.');
+  }
+  return slides[0];
+}
+
 var VF_DRIVE_UPLOAD_URL =
   'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id';
 var VF_DRIVE_FILE_URL = 'https://www.googleapis.com/drive/v3/files/';
@@ -188,17 +208,6 @@ function vfInsertVector(payload) {
     if (!sourceSlides.length) throw new Error('The converted file had no slides.');
     var sourceSlide = sourceSlides[0];
 
-    if (payload.newSlide) {
-      // Import wholesale as a new slide right after the current one.
-      var index = vfCurrentSlideIndex(presentation);
-      presentation.insertSlide(index + 1, sourceSlide);
-      return {
-        ok: true,
-        message: 'Added vector outlines on a new slide after this one.',
-        scale: fitted.scale
-      };
-    }
-
     // Copy the shapes straight onto the slide the user is looking at.
     var target = vfActiveSlide();
     var sourceElements = sourceSlide.getPageElements();
@@ -218,7 +227,6 @@ function vfInsertVector(payload) {
     }
 
     var result = copied.length > 1 ? target.group(copied) : copied[0];
-    vfStampSpec(result, payload.spec || {});
     result.select();
 
     return {
@@ -230,17 +238,4 @@ function vfInsertVector(payload) {
   } finally {
     vfDeleteDriveFile(fileId);
   }
-}
-
-function vfCurrentSlideIndex(presentation) {
-  var selection = presentation.getSelection();
-  var current = selection ? selection.getCurrentPage() : null;
-  var slides = presentation.getSlides();
-  if (current) {
-    var currentId = current.getObjectId();
-    for (var i = 0; i < slides.length; i++) {
-      if (slides[i].getObjectId() === currentId) return i;
-    }
-  }
-  return slides.length - 1;
 }

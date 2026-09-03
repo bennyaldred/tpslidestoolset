@@ -1,23 +1,22 @@
 # Variable Type — a variable-font designer for Google Slides
 
 A Google Slides add-on that gives you real variable-font axis controls — weight,
-width, optical size, slant, grade, and whatever custom axes a family ships — and
-puts the result into your slide as an **editable shape**.
+width, optical size, slant, grade, roundness, and whatever custom axes a family
+ships — and puts the result on your slide as **native vector shapes**.
 
-Slides has no variable-font support of its own. The add-on offers two honest
-ways around that, and tells you exactly what each one costs.
+Slides has no variable-font support of its own, and its API cannot create
+custom geometry. This gets around both, exactly:
 
-| | Editable text | Vector outlines |
-|---|---|---|
-| What lands on the slide | A real Slides text box | Native freeform vector shapes |
-| Text stays editable | **Yes** — type in it, spell-check it, restyle it | No — it is artwork |
-| Axis fidelity | `wght` snaps to steps of 100, `wdth` swaps to a sibling family, everything else is lost | **Exact**, every axis, including custom ones |
-| Geometry | n/a | Shaped with HarfBuzz, the engine browsers render text with — measured worst case 0.09% of pixels against the browser's own rendering |
-| Recolour / resize in Slides | Yes | Yes, losslessly (it is vector, not a picture) |
-| Tracking (letter-spacing) | Not supported by Slides | Yes |
-| Best for | Body copy and headings you will keep editing | Display type, logotypes, anything where the design matters |
+| | |
+|---|---|
+| What lands on the slide | Native Slides freeform vector shapes, grouped |
+| Axis fidelity | **Exact**, every axis, including custom ones |
+| Geometry | Shaped with HarfBuzz, the engine browsers render text with — measured worst case 0.09% of pixels against the browser's own rendering |
+| Tracking | Supported |
+| Recolour / resize in Slides | Yes, losslessly — it is vector, not a picture |
+| Text stays editable | No. It is artwork; design first, insert last |
 
-Neither mode ever inserts a raster image.
+Nothing is ever inserted as a raster image.
 
 ## How the vector mode works
 
@@ -68,8 +67,7 @@ as **three files** you can paste straight into the editor — no npm, no clasp.
 That is a working add-on for you, in that deck. To use it everywhere, publish it
 (below).
 
-If you only want **Editable text** mode, skip step 5 entirely — nothing else
-touches Drive.
+Step 5 is not optional: the vector import is the whole add-on.
 
 ### Or with clasp
 
@@ -114,12 +112,9 @@ preview.)
 public listing needs Google's OAuth verification (an extra review, typically
 including a security questionnaire). Two ways around it:
 
-- **Publish internally** to your own Workspace domain — no verification needed.
-- **Ship editable-text mode only.** Drop `presentations` down to
-  `presentations.currentonly` and remove `drive.file` from the manifest. Both
-  remaining scopes are non-sensitive. Vector mode then fails with a permission
-  error and everything else works, because only vector mode opens the temporary
-  converted file.
+Publish **internally** to your own Workspace domain and no verification is
+needed. A public listing needs the review, because the add-on has to open the
+temporary converted file to copy its shapes out.
 
 `urlFetchWhitelist` is already set in the manifest — Marketplace requires it for
 any add-on that calls `UrlFetchApp`, and it covers the two endpoints the server
@@ -128,35 +123,18 @@ touches (the Google Fonts catalogue, and Drive for the vector conversion).
 ## Using it
 
 - **Typeface** — every variable family on Google Fonts (~2000), fetched live
-  with its real axis ranges. Falls back to a bundled list if the fetch fails.
-- **Axes** — one slider per axis. Axes tagged `outline only` are ones Slides
-  cannot express in a text box; they are exact in vector mode.
-- **Insert** — drops the design on the current slide.
-- **Apply to selection** — restyles the text boxes you have selected.
-- **Load selection** — reopens a shape this add-on made with its original axis
-  values. The design is stamped into the shape's alt text, so the round trip
-  survives copy, paste, and reopening the deck. (It is visible in Slides' alt
-  text dialog.)
-- **Presets** — saved per user, not per deck.
-
-### The fidelity report
-
-In editable-text mode the sidebar lists every axis and what will actually
-happen to it:
-
-- **green** — applied exactly
-- **amber** — approximated (weight snapped to the nearest 100; width swapped to
-  a sibling family like *Roboto → Roboto Condensed*; slant substituted with
-  italic)
-- **red** — dropped; the static cut Slides renders is fixed at the font default
-
-If any row is amber or red and the design matters, switch to vector outlines.
+  with its real axis ranges. Opens on **Google Sans Flex**. Falls back to a
+  bundled list if the fetch fails.
+- **Axes** — one slider per axis, with a numeric field for exact values.
+- **Type settings** — size, tracking, line height, colour, alignment.
+- **Insert vector outlines** — drops the design on the current slide as a group
+  of vector shapes.
 
 ## Development
 
 ```bash
 npm install
-npm test         # 33 unit tests, no network or Google account needed
+npm test         # 29 unit tests, no network or Google account needed
 npm run preview  # dist/preview.html — the sidebar with a mock backend
 npm run build    # build/ — the three paste-ready Apps Script files
 ```
@@ -174,12 +152,9 @@ fonts, so the UI can be iterated on in a normal browser without deploying.
 | `src/Code.js` | Entry points and the `api*` surface the sidebar calls |
 | `src/FontCatalog.js` | Google Fonts catalogue, cached, with a bundled fallback |
 | `src/AxisRegistry.js` | Axis display names, slider steps, ordering |
-| `src/FontMapping.js` | Axis values → what Slides can render, plus the fidelity report |
-| `src/Insert.js` | Text-box insertion, restyling, alt-text round trip |
-| `src/Outline.js` | Glyph outlines → DrawingML `<a:custGeom>` |
+| `src/Outline.js` | Glyph outlines → DrawingML `<a:custGeom>`, one shape per outer contour |
 | `src/Pptx.js` | Minimal valid PPTX package |
 | `src/VectorInsert.js` | Drive conversion and copying shapes onto your slide |
-| `src/Settings.js` | Presets and preferences |
 | `src/Sidebar*.html` | The sidebar UI |
 
 Apps Script evaluates every `.gs` file into one shared global scope, so the
@@ -222,11 +197,10 @@ Script → Executions* to see the server-side error.
 
 ## Known limits
 
-- **Vector outlines are not text.** You cannot retype them. Design first,
-  outline last.
+- **Outlines are not text.** You cannot retype them. Design first, insert last.
 - **Shaping is full OpenType.** Vector mode shapes with HarfBuzz, so kerning,
   ligatures and complex scripts behave as they do in the browser.
-- **Vector mode inserts a group, not one shape.** There is one shape per outer
+- **Each insert is a group, not one shape.** There is one shape per outer
   contour — roughly one per letter, more for letters with counters — grouped
   together. That is what keeps the geometry exact, and it makes individual
   letters selectable inside the group.

@@ -53,11 +53,6 @@ Every step of that is automatable:
    the slide the user is looking at with `Slide.insertShape(shape)`, then
    grouped. The temporary file is deleted in a `finally` block.
 
-If copying misbehaves for a particular deck, the sidebar offers *Import onto a
-new slide instead*, which uses `Presentation.insertSlide(index, slide)` — a
-documented cross-presentation copy — and leaves the shapes one cut-and-paste
-away.
-
 ## Slides fills custom geometry with the even-odd rule
 
 The first working import came back with letterforms that were *nearly* right:

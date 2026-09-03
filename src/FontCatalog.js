@@ -18,6 +18,14 @@ var VF_CACHE_CHUNK_SIZE = 90000; // CacheService caps a value at 100KB.
  * from; the live metadata always wins when it is reachable.
  */
 var VF_FALLBACK_CATALOG = [
+  { family: 'Google Sans Flex', category: 'Sans Serif', axes: [
+    { tag: 'opsz', min: 6, max: 144, defaultValue: 18 },
+    { tag: 'slnt', min: -10, max: 0, defaultValue: 0 },
+    { tag: 'wdth', min: 25, max: 151, defaultValue: 100 },
+    { tag: 'wght', min: 1, max: 1000, defaultValue: 400 },
+    { tag: 'GRAD', min: 0, max: 100, defaultValue: 0 },
+    { tag: 'ROND', min: 0, max: 100, defaultValue: 0 }
+  ] },
   { family: 'Roboto Flex', category: 'Sans Serif', axes: [
     { tag: 'opsz', min: 8, max: 144, defaultValue: 14 },
     { tag: 'slnt', min: -10, max: 0, defaultValue: 0 },
@@ -236,20 +244,17 @@ function vfCacheGet(cache, key) {
 }
 
 /**
- * @param {boolean=} forceRefresh Bypass the cache (used by the "Refresh fonts" action).
  * @return {{fonts: Array, source: string, warning: (string|undefined)}}
  */
-function vfGetCatalog(forceRefresh) {
+function vfGetCatalog() {
   var cache = CacheService.getScriptCache();
-  if (!forceRefresh) {
-    try {
-      var cached = vfCacheGet(cache, VF_CACHE_KEY);
-      if (cached) {
-        return { fonts: JSON.parse(cached), source: 'cache' };
-      }
-    } catch (cacheError) {
-      // A corrupt cache entry should never break the sidebar; just refetch.
+  try {
+    var cached = vfCacheGet(cache, VF_CACHE_KEY);
+    if (cached) {
+      return { fonts: JSON.parse(cached), source: 'cache' };
     }
+  } catch (cacheError) {
+    // A corrupt cache entry should never break the sidebar; just refetch.
   }
 
   try {

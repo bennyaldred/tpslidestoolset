@@ -15,10 +15,7 @@
       </section>
 
       <section class="block">
-        <div class="row-between">
-          <label class="label" for="font-search">Typeface</label>
-          <button id="refresh-fonts" class="link-btn" type="button" title="Reload the font list from Google Fonts">Refresh</button>
-        </div>
+        <label class="label" for="font-search">Typeface</label>
         <input id="font-search" class="input" type="search" placeholder="Search variable fonts…" autocomplete="off">
         <select id="font-select" class="select" size="6"></select>
         <div id="font-meta" class="hint"></div>
@@ -66,38 +63,10 @@
         </div>
       </section>
 
-      <section class="block">
-        <span class="label">Insert as</span>
-        <div class="seg" id="mode" role="group" aria-label="Insert mode">
-          <button type="button" data-value="text" class="seg-btn is-active">Editable text</button>
-          <button type="button" data-value="vector" class="seg-btn">Vector outlines</button>
-        </div>
-        <div id="mode-note" class="hint"></div>
-        <div id="fidelity" class="fidelity"></div>
-        <label class="check" id="new-slide-wrap" hidden>
-          <input id="new-slide" type="checkbox">
-          <span>Import onto a new slide instead of this one</span>
-        </label>
-      </section>
-
       <section class="block actions">
-        <button id="insert" class="btn btn-primary" type="button">Insert</button>
-        <div class="row">
-          <button id="apply" class="btn" type="button" title="Restyle the shapes selected in the slide">Apply to selection</button>
-          <button id="load" class="btn" type="button" title="Read axis values back from a shape this add-on made">Load selection</button>
-        </div>
-      </section>
-
-      <section class="block">
-        <span class="label">Presets</span>
-        <div class="row">
-          <select id="preset-select" class="select-inline"><option value="">—</option></select>
-          <button id="preset-delete" class="btn btn-small" type="button" title="Delete the selected preset">Delete</button>
-        </div>
-        <div class="row">
-          <input id="preset-name" class="input" type="text" placeholder="Preset name">
-          <button id="preset-save" class="btn btn-small" type="button">Save</button>
-        </div>
+        <button id="insert" class="btn btn-primary" type="button">Insert vector outlines</button>
+        <div class="hint">Inserted as native Slides vector shapes, grouped. Every
+          axis is exact; the result is artwork, not editable text.</div>
       </section>
     </div>
 

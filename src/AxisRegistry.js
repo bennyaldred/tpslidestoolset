@@ -54,9 +54,6 @@ var VF_AXIS_REGISTRY = {
   YTUC: { name: 'Uppercase height', step: 1, precision: 0, order: 207 }
 };
 
-/** Axes the Slides text engine can express, in some form. */
-var VF_MAPPABLE_AXES = ['wght', 'ital', 'slnt', 'wdth'];
-
 function vfAxisInfo(tag) {
   var known = VF_AXIS_REGISTRY[tag];
   if (known) {
@@ -74,5 +71,5 @@ function vfAxisInfo(tag) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { VF_AXIS_REGISTRY: VF_AXIS_REGISTRY, VF_MAPPABLE_AXES: VF_MAPPABLE_AXES, vfAxisInfo: vfAxisInfo };
+  module.exports = { VF_AXIS_REGISTRY: VF_AXIS_REGISTRY, vfAxisInfo: vfAxisInfo };
 }

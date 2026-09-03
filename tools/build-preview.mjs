@@ -18,6 +18,14 @@ const src = join(root, 'src');
 const read = name => readFileSync(join(src, name), 'utf8');
 
 const FIXTURE_FONTS = [
+  { family: 'Google Sans Flex', category: 'Sans Serif', axes: [
+    { tag: 'opsz', min: 6, max: 144, defaultValue: 18 },
+    { tag: 'slnt', min: -10, max: 0, defaultValue: 0 },
+    { tag: 'wdth', min: 25, max: 151, defaultValue: 100 },
+    { tag: 'wght', min: 1, max: 1000, defaultValue: 400 },
+    { tag: 'GRAD', min: 0, max: 100, defaultValue: 0 },
+    { tag: 'ROND', min: 0, max: 100, defaultValue: 0 }
+  ] },
   { family: 'Roboto Flex', category: 'Sans Serif', axes: [
     { tag: 'opsz', min: 8, max: 144, defaultValue: 14 },
     { tag: 'slnt', min: -10, max: 0, defaultValue: 0 },
@@ -48,46 +56,21 @@ const FIXTURE_FONTS = [
 const mock = `
 <script>
 ${read('AxisRegistry.js')}
-${read('FontMapping.js')}
 </script>
 <script>
-/* Stand-in for the Apps Script bridge. Resolution uses the real mapping code
-   above; anything that would touch a presentation is logged instead. */
+/* Stand-in for the Apps Script bridge: anything that would touch a
+   presentation is logged instead. */
 (function () {
   var FONTS = ${JSON.stringify(FIXTURE_FONTS, null, 2)};
-  var presets = [];
   var handlers = {
     apiBootstrap: function () {
-      return { ok: true, fonts: FONTS, source: 'preview-fixture', presets: presets,
+      return { ok: true, fonts: FONTS, source: 'preview-fixture',
                axisRegistry: VF_AXIS_REGISTRY,
                warning: 'Local preview — using fixture fonts and a mock backend.' };
-    },
-    apiRefreshFonts: function () { return { ok: true, fonts: FONTS, source: 'preview-fixture' }; },
-    apiResolveStyle: function (spec) {
-      return { ok: true, resolved: vfResolveSlidesStyle(spec) };
-    },
-    apiInsertTextShape: function (spec) {
-      console.log('[preview] insert text shape', spec);
-      var resolved = vfResolveSlidesStyle(spec);
-      return { ok: true, message: 'Preview: would insert ' + resolved.fontFamily + ' ' + resolved.weight,
-               resolved: resolved };
     },
     apiInsertVector: function (payload) {
       console.log('[preview] insert vector', payload.commands.length, 'commands');
       return { ok: true, message: 'Preview: would import ' + payload.commands.length + ' path segments', scale: 1 };
-    },
-    apiApplyToSelection: function (spec) {
-      return { ok: true, message: 'Preview: would restyle the selection', resolved: vfResolveSlidesStyle(spec) };
-    },
-    apiLoadFromSelection: function () { return { ok: false, message: 'No selection in the local preview.' }; },
-    apiSavePreset: function (name, spec) {
-      presets = presets.filter(function (p) { return p.name !== name; });
-      presets.unshift({ name: name, spec: spec });
-      return { ok: true, presets: presets };
-    },
-    apiDeletePreset: function (name) {
-      presets = presets.filter(function (p) { return p.name !== name; });
-      return { ok: true, presets: presets };
     }
   };
 

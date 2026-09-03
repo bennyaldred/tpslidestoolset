@@ -44,7 +44,7 @@
   .field { display: block; }
   .field-label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
 
-  .input, .select, .textarea, .select-inline {
+  .input, .select, .textarea {
     width: 100%;
     font: inherit;
     color: var(--fg);
@@ -54,14 +54,13 @@
     padding: 6px 8px;
   }
   .textarea { resize: vertical; font-size: 13px; }
-  .input:focus, .select:focus, .textarea:focus, .select-inline:focus {
+  .input:focus, .select:focus, .textarea:focus {
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);
   }
   .input.color { padding: 2px; height: 32px; cursor: pointer; }
   .select { margin-top: 6px; }
-  .select-inline { flex: 1; min-width: 0; }
 
   .hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
 
@@ -110,19 +109,6 @@
   }
   .axis-value:focus { outline: 1px solid var(--accent); border-radius: 2px; }
   .axis input[type=range] { width: 100%; margin: 0; accent-color: var(--accent); }
-  .axis-unmapped .axis-name::after {
-    content: 'outline only';
-    margin-left: 6px;
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    color: var(--muted);
-    background: #f1f3f4;
-    border-radius: 8px;
-    padding: 1px 5px;
-  }
-
   /* --- Segmented control ---------------------------------------------- */
   .seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
   .seg-btn {
@@ -132,20 +118,6 @@
   }
   .seg-btn:last-child { border-right: none; }
   .seg-btn.is-active { background: var(--accent-weak); color: var(--accent); font-weight: 500; }
-
-  /* --- Fidelity report ------------------------------------------------ */
-  .fidelity { margin-top: 8px; }
-  .fid-row {
-    display: flex; align-items: baseline; gap: 6px;
-    font-size: 11px; padding: 3px 0; border-top: 1px solid #f1f3f4;
-  }
-  .fid-row:first-child { border-top: none; }
-  .fid-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
-  .fid-exact .fid-dot { background: #34a853; }
-  .fid-approximate .fid-dot { background: #f9ab00; }
-  .fid-dropped .fid-dot { background: #d93025; }
-  .fid-name { font-weight: 500; flex: none; }
-  .fid-detail { color: var(--muted); }
 
   /* --- Buttons -------------------------------------------------------- */
   .actions { position: sticky; bottom: 0; background: var(--bg); padding-top: 6px; }
@@ -161,7 +133,6 @@
   }
   .btn:hover:not(:disabled) { background: #f8f9fa; }
   .btn:disabled { opacity: .5; cursor: default; }
-  .btn-small { flex: none; padding: 6px 10px; }
   .btn-primary {
     width: 100%;
     background: var(--accent);
@@ -172,9 +143,6 @@
     margin-bottom: 6px;
   }
   .btn-primary:hover:not(:disabled) { background: #1765cc; }
-
-  .check { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: var(--muted); margin-top: 8px; }
-  .check input { margin: 2px 0 0; }
 
   /* --- Status --------------------------------------------------------- */
   .status {

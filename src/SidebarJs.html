@@ -28,14 +28,15 @@
   /** Guard against pathological input turning into a megabyte of path data. */
   var MAX_OUTLINE_COMMANDS = 120000;
 
+  /** Selected on open when the catalogue has it. */
+  var DEFAULT_FAMILY = 'Google Sans Flex';
+
   var state = {
     fonts: [],
     axisRegistry: {},
     font: null,          // the selected catalog entry
     values: {},          // axis tag -> current value
-    mode: 'text',
-    align: 'left',
-    presets: []
+    align: 'left'
   };
 
   var els = {};
@@ -91,9 +92,6 @@
       unit: known && known.unit ? known.unit : ''
     };
   }
-
-  /** Axes Slides can express in a text shape; the rest are vector-only. */
-  var MAPPABLE = { wght: 1, wdth: 1, ital: 1, slnt: 1 };
 
   function round(value, precision) {
     var factor = Math.pow(10, precision || 0);
@@ -198,7 +196,7 @@
     sortedAxes(state.font).forEach(function (axis) {
       var info = axisInfo(axis.tag);
       var wrap = document.createElement('div');
-      wrap.className = 'axis' + (MAPPABLE[axis.tag] ? '' : ' axis-unmapped');
+      wrap.className = 'axis';
 
       var head = document.createElement('div');
       head.className = 'axis-head';
@@ -232,7 +230,6 @@
         if (syncSlider) slider.value = clamped;
         if (syncNumber) number.value = round(clamped, info.precision);
         renderPreview();
-        scheduleFidelity();
       }
 
       slider.addEventListener('input', function () { apply(slider.value, false, true); });
@@ -249,10 +246,7 @@
     });
     renderAxes();
     renderPreview();
-    scheduleFidelity();
   }
-
-  // ------------------------------------------------------- fidelity report
 
   function currentSpec() {
     return {
@@ -264,55 +258,9 @@
       tracking: Number(els.tracking.value) || 0,
       lineSpacing: (Number(els.lineHeight.value) || 1.1) * 100,
       color: els.color.value,
-      align: state.align,
-      allowFauxItalic: true
+      align: state.align
     };
   }
-
-  function renderFidelity(resolved) {
-    var container = els.fidelity;
-    container.innerHTML = '';
-    if (state.mode !== 'text' || !resolved) return;
-
-    var header = document.createElement('div');
-    header.className = 'hint';
-    header.textContent = 'Slides will render: ' + resolved.fontFamily + ' ' +
-      resolved.weight + (resolved.italic ? ' italic' : '');
-    container.appendChild(header);
-
-    resolved.notes.forEach(function (note) {
-      var row = document.createElement('div');
-      row.className = 'fid-row fid-' + note.status;
-      var dot = document.createElement('span');
-      dot.className = 'fid-dot';
-      var name = document.createElement('span');
-      name.className = 'fid-name';
-      name.textContent = note.name;
-      var detail = document.createElement('span');
-      detail.className = 'fid-detail';
-      detail.textContent = note.detail;
-      row.appendChild(dot);
-      row.appendChild(name);
-      row.appendChild(detail);
-      container.appendChild(row);
-    });
-
-    if (Number(els.tracking.value)) {
-      var row = document.createElement('div');
-      row.className = 'fid-row fid-dropped';
-      row.innerHTML = '<span class="fid-dot"></span><span class="fid-name">Tracking</span>' +
-        '<span class="fid-detail">Slides has no letter-spacing control. ' +
-        'Vector outlines keep it.</span>';
-      container.appendChild(row);
-    }
-  }
-
-  var scheduleFidelity = debounce(function () {
-    if (state.mode !== 'text' || !state.font) return;
-    call('apiResolveStyle', currentSpec())
-      .then(function (result) { renderFidelity(result.resolved); })
-      .catch(function () { /* The report is advisory; never block on it. */ });
-  }, 250);
 
   // ----------------------------------------------------- outline extraction
 
@@ -788,27 +736,6 @@
     if (!spec.text.trim()) { setStatus('Type something to insert.', 'error'); return; }
 
     busy(true);
-    if (state.mode === 'text') {
-      setStatus('Inserting text box…');
-      // Measuring before the webfont arrives would size the box against the
-      // fallback face, so wait for it.
-      var ready = document.fonts && document.fonts.ready
-        ? document.fonts.ready
-        : Promise.resolve();
-      ready
-        .then(function () {
-          measureForSlides(spec);
-          return call('apiInsertTextShape', spec);
-        })
-        .then(function (result) {
-          setStatus(result.message, 'ok');
-          renderFidelity(result.resolved);
-        })
-        .catch(function (error) { setStatus(error.message, 'error'); })
-        .then(function () { busy(false); });
-      return;
-    }
-
     setStatus('Building vector outlines…');
     loadFontBinary(state.font, spec.text)
       .then(function (loadedFont) {
@@ -823,9 +750,7 @@
           commands: commands,
           color: spec.color,
           text: spec.text,
-          family: spec.family,
-          spec: { family: spec.family, values: spec.values, fontSize: spec.fontSize, color: spec.color },
-          newSlide: els.newSlide.checked
+          family: spec.family
         });
       })
       .then(function (result) {
@@ -833,109 +758,6 @@
           ? ' Scaled to ' + Math.round(result.scale * 100) + '% to fit the slide.'
           : '';
         setStatus(result.message + suffix, 'ok');
-      })
-      .catch(function (error) { setStatus(error.message, 'error'); })
-      .then(function () { busy(false); });
-  }
-
-  /**
-   * Measure the preview so the inserted text box matches what the user saw.
-   * Slides lays text out slightly differently, so the server adds slack.
-   */
-  function measureForSlides(spec) {
-    var probe = document.createElement('div');
-    probe.style.cssText =
-      'position:absolute;visibility:hidden;white-space:pre;left:-9999px;top:0';
-    probe.style.fontFamily = '"' + spec.family + '", sans-serif';
-    probe.style.fontSize = spec.fontSize + 'pt';
-    probe.style.fontVariationSettings = variationSettings();
-    probe.style.letterSpacing = spec.tracking + 'em';
-    probe.style.lineHeight = spec.lineSpacing / 100;
-    probe.textContent = spec.text;
-    document.body.appendChild(probe);
-    var rect = probe.getBoundingClientRect();
-    document.body.removeChild(probe);
-    // CSS pixels are 1/96in, points are 1/72in.
-    spec.widthPt = rect.width * 0.75;
-    spec.heightPt = rect.height * 0.75;
-  }
-
-  function applyToSelection() {
-    if (!state.font) return;
-    busy(true);
-    setStatus('Restyling selection…');
-    call('apiApplyToSelection', currentSpec())
-      .then(function (result) {
-        setStatus(result.message, 'ok');
-        renderFidelity(result.resolved);
-      })
-      .catch(function (error) { setStatus(error.message, 'error'); })
-      .then(function () { busy(false); });
-  }
-
-  function loadFromSelection() {
-    busy(true);
-    call('apiLoadFromSelection')
-      .then(function (result) {
-        if (!result.ok) { setStatus(result.message, 'warn'); return; }
-        applySpec(result.spec);
-        setStatus('Loaded settings from the selected shape.', 'ok');
-      })
-      .catch(function (error) { setStatus(error.message, 'error'); })
-      .then(function () { busy(false); });
-  }
-
-  /** Restore a saved or round-tripped design into the controls. */
-  function applySpec(spec) {
-    var match = state.fonts.filter(function (font) { return font.family === spec.family; })[0];
-    if (match) selectFont(match, spec.values);
-    if (spec.text !== undefined) els.text.value = spec.text;
-    if (spec.fontSize) els.fontSize.value = spec.fontSize;
-    if (spec.tracking !== undefined) els.tracking.value = spec.tracking;
-    if (spec.lineSpacing) els.lineHeight.value = spec.lineSpacing / 100;
-    if (spec.color) els.color.value = spec.color;
-    if (spec.align) setSegment(els.align, spec.align);
-    renderPreview();
-    scheduleFidelity();
-  }
-
-  // ------------------------------------------------------------- presets
-
-  function renderPresets() {
-    els.presetSelect.innerHTML = '<option value="">—</option>';
-    state.presets.forEach(function (preset) {
-      var option = document.createElement('option');
-      option.value = preset.name;
-      option.textContent = preset.name;
-      els.presetSelect.appendChild(option);
-    });
-  }
-
-  function savePreset() {
-    var name = els.presetName.value.trim();
-    if (!name) { setStatus('Give the preset a name first.', 'error'); return; }
-    busy(true);
-    call('apiSavePreset', name, currentSpec())
-      .then(function (result) {
-        state.presets = result.presets;
-        renderPresets();
-        els.presetName.value = '';
-        els.presetSelect.value = name;
-        setStatus('Saved preset "' + name + '".', 'ok');
-      })
-      .catch(function (error) { setStatus(error.message, 'error'); })
-      .then(function () { busy(false); });
-  }
-
-  function deletePreset() {
-    var name = els.presetSelect.value;
-    if (!name) return;
-    busy(true);
-    call('apiDeletePreset', name)
-      .then(function (result) {
-        state.presets = result.presets;
-        renderPresets();
-        setStatus('Deleted preset "' + name + '".', 'ok');
       })
       .catch(function (error) { setStatus(error.message, 'error'); })
       .then(function () { busy(false); });
@@ -973,7 +795,6 @@
     ensurePreviewFont(font);
     renderAxes();
     renderPreview();
-    scheduleFidelity();
   }
 
   // ------------------------------------------------------------ segments
@@ -983,15 +804,6 @@
       button.classList.toggle('is-active', button.dataset.value === value);
     });
     if (group === els.align) state.align = value;
-    if (group === els.mode) {
-      state.mode = value;
-      els.newSlideWrap.hidden = value !== 'vector';
-      els.modeNote.textContent = value === 'text'
-        ? 'A real Slides text box. Fully editable text, but Slides snaps to the nearest static cut of the family.'
-        : 'True glyph outlines as native Slides freeform shapes. Every axis is exact; the result is vector art, not text.';
-      els.fidelity.innerHTML = '';
-      if (value === 'text') scheduleFidelity();
-    }
   }
 
   function wireSegment(group) {
@@ -1009,16 +821,12 @@
     [
       'app', 'status', 'text', 'font-search', 'font-select', 'font-meta', 'preview',
       'preview-hint', 'axes', 'reset-axes', 'font-size', 'tracking', 'line-height',
-      'color', 'align', 'mode', 'mode-note', 'fidelity', 'new-slide', 'new-slide-wrap',
-      'insert', 'apply', 'load', 'preset-select', 'preset-name', 'preset-save',
-      'preset-delete', 'refresh-fonts'
+      'color', 'align', 'insert'
     ].forEach(function (id) {
       els[id.replace(/-(\w)/g, function (_, c) { return c.toUpperCase(); })] = $(id);
     });
 
     wireSegment(els.align);
-    wireSegment(els.mode);
-    setSegment(els.mode, 'text');
 
     els.fontSearch.addEventListener('input', function () {
       renderFontList(els.fontSearch.value);
@@ -1030,47 +838,22 @@
       if (chosen) selectFont(chosen);
     });
 
-    var repaint = debounce(function () { renderPreview(); scheduleFidelity(); }, 60);
+    var repaint = debounce(renderPreview, 60);
     ['text', 'fontSize', 'tracking', 'lineHeight', 'color'].forEach(function (key) {
       els[key].addEventListener('input', repaint);
     });
 
     els.resetAxes.addEventListener('click', resetAxes);
     els.insert.addEventListener('click', insert);
-    els.apply.addEventListener('click', applyToSelection);
-    els.load.addEventListener('click', loadFromSelection);
-    els.presetSave.addEventListener('click', savePreset);
-    els.presetDelete.addEventListener('click', deletePreset);
-    els.presetSelect.addEventListener('change', function () {
-      var preset = state.presets.filter(function (item) {
-        return item.name === els.presetSelect.value;
-      })[0];
-      if (preset) applySpec(preset.spec);
-    });
-    els.refreshFonts.addEventListener('click', function () {
-      busy(true);
-      setStatus('Reloading the font list…');
-      call('apiRefreshFonts')
-        .then(function (result) {
-          state.fonts = result.fonts;
-          renderFontList(els.fontSearch.value);
-          setStatus(result.warning || ('Loaded ' + result.fonts.length + ' variable fonts.'),
-            result.warning ? 'warn' : 'ok');
-        })
-        .catch(function (error) { setStatus(error.message, 'error'); })
-        .then(function () { busy(false); });
-    });
 
     setStatus('Loading fonts…');
     call('apiBootstrap')
       .then(function (result) {
         state.fonts = result.fonts || [];
         state.axisRegistry = result.axisRegistry || {};
-        state.presets = result.presets || [];
-        renderPresets();
         renderFontList('');
         var initial = state.fonts.filter(function (font) {
-          return font.family === 'Roboto Flex';
+          return font.family === DEFAULT_FAMILY;
         })[0] || state.fonts[0];
         if (initial) selectFont(initial);
         setStatus(result.warning || '', result.warning ? 'warn' : '');
