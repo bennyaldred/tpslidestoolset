@@ -134,7 +134,7 @@ touches (the Google Fonts catalogue, and Drive for the vector conversion).
 
 ```bash
 npm install
-npm test         # 29 unit tests, no network or Google account needed
+npm test         # 36 unit tests, no network or Google account needed
 npm run preview  # dist/preview.html — the sidebar with a mock backend
 npm run build    # build/ — the three paste-ready Apps Script files
 ```

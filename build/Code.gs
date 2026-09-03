@@ -1299,13 +1299,12 @@ function vfWrap(action) {
 /** Everything the sidebar needs on open, in one round trip. */
 function apiBootstrap() {
   return vfWrap(function () {
-    var catalog = vfGetCatalog(false);
+    var catalog = vfGetCatalog();
     return {
       fonts: catalog.fonts,
       source: catalog.source,
       warning: catalog.warning,
-      axisRegistry: VF_AXIS_REGISTRY,
-      presets: vfListPresets()
+      axisRegistry: VF_AXIS_REGISTRY
     };
   });
 }
