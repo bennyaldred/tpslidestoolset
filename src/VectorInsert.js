@@ -59,10 +59,44 @@ function vfUploadAndConvert(pptxBlob, name) {
 
   var code = response.getResponseCode();
   if (code < 200 || code >= 300) {
-    throw new Error('Drive could not convert the vector file (HTTP ' + code + '): ' +
-      response.getContentText().slice(0, 300));
+    throw new Error(vfExplainDriveError(code, response.getContentText()));
   }
   return JSON.parse(response.getContentText()).id;
+}
+
+/**
+ * Turn a Drive API failure into something the user can act on.
+ *
+ * The common one by far is a fresh script whose Cloud project has never had
+ * the Drive API switched on. Google's raw message is three sentences of
+ * boilerplate wrapped in JSON, so name the actual fix instead.
+ */
+function vfExplainDriveError(code, body) {
+  var parsed = null;
+  try {
+    parsed = JSON.parse(body);
+  } catch (ignored) {
+    // Non-JSON error bodies fall through to the generic message below.
+  }
+  var detail = parsed && parsed.error && parsed.error.message ? parsed.error.message : body;
+
+  if (code === 403 && /has not been used in project|accessNotConfigured|is disabled/i.test(detail)) {
+    return 'Vector mode needs the Drive API, which is not switched on for this ' +
+      'script yet. In the Apps Script editor: Services (left sidebar) → + → ' +
+      'Drive API → Add. Then wait a minute and try again. ' +
+      '(Editable text mode works without this.)';
+  }
+  if (code === 401 || (code === 403 && /insufficient|permission|scope/i.test(detail))) {
+    return 'Vector mode is not authorised. Re-run the add-on and accept the ' +
+      'permission prompt; if the manifest was narrowed to ' +
+      'presentations.currentonly, vector mode needs the broader ' +
+      'presentations and drive.file scopes.';
+  }
+  if (code === 429 || code >= 500) {
+    return 'Drive is temporarily unavailable (HTTP ' + code + '). Try again in a moment.';
+  }
+  return 'Drive could not convert the vector file (HTTP ' + code + '): ' +
+    String(detail).slice(0, 300);
 }
 
 function vfDeleteDriveFile(fileId) {

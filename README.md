@@ -56,12 +56,18 @@ as **three files** you can paste straight into the editor — no npm, no clasp.
 4. **Project Settings** → tick *Show "appsscript.json" manifest file in editor*.
    Back in the editor, replace `appsscript.json` with
    [`build/appsscript.json`](build/appsscript.json).
-5. Save, then reload the Slides deck.
-6. **Extensions → Variable Type → Open Variable Type**. Approve the permission
+5. **Enable the Drive API** — needed by vector mode only. In the left sidebar:
+   **Services → + → Drive API → Add**. This switches the API on in the Cloud
+   project behind your script; without it, vector inserts fail with a Drive 403.
+6. Save, then reload the Slides deck.
+7. **Extensions → Variable Type → Open Variable Type**. Approve the permission
    prompt on first run.
 
 That is a working add-on for you, in that deck. To use it everywhere, publish it
 (below).
+
+If you only want **Editable text** mode, skip step 5 entirely — nothing else
+touches Drive.
 
 ### Or with clasp
 
@@ -86,7 +92,10 @@ preview.)
    *Project Settings*.
 2. **Attach a Cloud project.** *Project Settings → Google Cloud Platform
    project → Change project*, and point it at a standard GCP project you own.
-   A default project cannot be published.
+   A default project cannot be published. Enable the **Google Drive API** in
+   that project too — moving to a standard project means you now manage API
+   enablement yourself, and the editor's *Services* shortcut no longer does it
+   for you.
 3. **Configure the OAuth consent screen** in that Cloud project: app name, a
    support email, a logo, plus links to a homepage, privacy policy and terms.
    Set the user type — *Internal* for your own Workspace domain, *External* for
@@ -175,6 +184,29 @@ Apps Script evaluates every `.gs` file into one shared global scope, so the
 `.js` files declare plain globals (prefixed `vf`) rather than using modules.
 The tests load them the same way, via `node:vm`, which keeps the tests honest
 about how the code will actually run.
+
+## Troubleshooting
+
+**"Vector mode needs the Drive API…"** — do step 5 of the install: *Services → +
+→ Drive API → Add*, wait a minute, retry. On a standard Cloud project, enable
+*Google Drive API* in the Cloud console instead.
+
+**Vector shapes import as rectangles or blobs** — the cross-presentation copy
+did not carry the custom geometry. Tick **Import onto a new slide instead** in
+the sidebar; that path uses `insertSlide()` and leaves the outlines one
+cut-and-paste from your slide.
+
+**"Could not load …jsdelivr…"** — vector mode loads `opentype.js` and the woff2
+decompressor from a CDN. If your network blocks it, editable-text mode still
+works.
+
+**The preview shows a fallback font** — the family has not downloaded yet, or
+the sidebar cannot reach `fonts.googleapis.com`. The font list itself comes
+from the server, so a populated list with a wrong-looking preview points at the
+browser's connection, not the add-on's.
+
+**Insert does nothing and the sidebar looks stuck** — open *Extensions → Apps
+Script → Executions* to see the server-side error.
 
 ## Known limits
 

@@ -11,4 +11,7 @@ Three files go into one Apps Script project:
 | `Sidebar.html` | an HTML file named **Sidebar** (the name matters — `Code.gs` loads it by name) |
 | `appsscript.json` | the manifest, via *Project Settings → Show "appsscript.json" in editor* |
 
+Then, for vector mode only: **Services → + → Drive API → Add** in the editor.
+Without it, vector inserts fail with a Drive 403.
+
 See the repository README for the full walkthrough.
