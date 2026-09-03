@@ -5,9 +5,10 @@
   "description": "Google Slides add-on for designing with variable typefaces and inserting the result as an editable Slides shape.",
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "preview": "node tools/build-preview.mjs && echo 'Open dist/preview.html in a browser.'",
+    "preview": "node tools/build-preview.mjs",
     "push": "clasp push",
-    "open": "clasp open"
+    "open": "clasp open",
+    "build": "node tools/build-appsscript.mjs"
   },
   "devDependencies": {
     "@google/clasp": "^2.4.2",

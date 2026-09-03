@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f1f1f;
+    --muted: #5f6368;
+    --line: #dadce0;
+    --accent: #1a73e8;
+    --accent-weak: #e8f0fe;
+    --warn-bg: #fef7e0;
+    --warn-fg: #7a5900;
+    --err-bg: #fce8e6;
+    --err-fg: #a50e0e;
+    --ok-bg: #e6f4ea;
+    --ok-fg: #137333;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 12px 12px 32px;
+    font: 13px/1.45 'Google Sans', Roboto, Arial, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+  }
+
+  .block { margin-bottom: 18px; }
+  .block:last-child { margin-bottom: 0; }
+
+  .label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .row { display: flex; gap: 6px; align-items: center; }
+  .row-between { display: flex; justify-content: space-between; align-items: baseline; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+
+  .field { display: block; }
+  .field-label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+
+  .input, .select, .textarea, .select-inline {
+    width: 100%;
+    font: inherit;
+    color: var(--fg);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 6px 8px;
+  }
+  .textarea { resize: vertical; font-size: 13px; }
+  .input:focus, .select:focus, .textarea:focus, .select-inline:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .input.color { padding: 2px; height: 32px; cursor: pointer; }
+  .select { margin-top: 6px; }
+  .select-inline { flex: 1; min-width: 0; }
+
+  .hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+  .link-btn {
+    background: none; border: none; padding: 0;
+    color: var(--accent); font: inherit; font-size: 11px; cursor: pointer;
+  }
+  .link-btn:hover { text-decoration: underline; }
+
+  /* --- Preview ------------------------------------------------------- */
+  .preview-frame {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background:
+      linear-gradient(45deg, #f3f3f3 25%, transparent 25%, transparent 75%, #f3f3f3 75%),
+      linear-gradient(45deg, #f3f3f3 25%, #fff 25%, #fff 75%, #f3f3f3 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 6px 6px;
+    overflow: auto;
+    min-height: 96px;
+    max-height: 220px;
+    display: flex;
+    align-items: center;
+    padding: 10px;
+  }
+  .preview {
+    white-space: pre;
+    line-height: 1.1;
+    color: #1a1a1a;
+    /* Sized in JS so the preview tracks the real point size, scaled to fit. */
+  }
+
+  /* --- Axis sliders --------------------------------------------------- */
+  .axis { margin-bottom: 10px; }
+  .axis-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 11px; margin-bottom: 2px;
+  }
+  .axis-name { color: var(--fg); font-weight: 500; }
+  .axis-tag { color: var(--muted); font-family: 'Roboto Mono', monospace; font-size: 10px; }
+  .axis-value {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    border: none; background: none; text-align: right; width: 62px; padding: 0;
+  }
+  .axis-value:focus { outline: 1px solid var(--accent); border-radius: 2px; }
+  .axis input[type=range] { width: 100%; margin: 0; accent-color: var(--accent); }
+  .axis-unmapped .axis-name::after {
+    content: 'outline only';
+    margin-left: 6px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: #f1f3f4;
+    border-radius: 8px;
+    padding: 1px 5px;
+  }
+
+  /* --- Segmented control ---------------------------------------------- */
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .seg-btn {
+    flex: 1; padding: 6px 4px; font: inherit; font-size: 12px;
+    background: #fff; border: none; border-right: 1px solid var(--line);
+    color: var(--muted); cursor: pointer;
+  }
+  .seg-btn:last-child { border-right: none; }
+  .seg-btn.is-active { background: var(--accent-weak); color: var(--accent); font-weight: 500; }
+
+  /* --- Fidelity report ------------------------------------------------ */
+  .fidelity { margin-top: 8px; }
+  .fid-row {
+    display: flex; align-items: baseline; gap: 6px;
+    font-size: 11px; padding: 3px 0; border-top: 1px solid #f1f3f4;
+  }
+  .fid-row:first-child { border-top: none; }
+  .fid-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .fid-exact .fid-dot { background: #34a853; }
+  .fid-approximate .fid-dot { background: #f9ab00; }
+  .fid-dropped .fid-dot { background: #d93025; }
+  .fid-name { font-weight: 500; flex: none; }
+  .fid-detail { color: var(--muted); }
+
+  /* --- Buttons -------------------------------------------------------- */
+  .actions { position: sticky; bottom: 0; background: var(--bg); padding-top: 6px; }
+  .btn {
+    flex: 1;
+    font: inherit; font-size: 12px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .btn:hover:not(:disabled) { background: #f8f9fa; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn-small { flex: none; padding: 6px 10px; }
+  .btn-primary {
+    width: 100%;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 500;
+    padding: 10px;
+    margin-bottom: 6px;
+  }
+  .btn-primary:hover:not(:disabled) { background: #1765cc; }
+
+  .check { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .check input { margin: 2px 0 0; }
+
+  /* --- Status --------------------------------------------------------- */
+  .status {
+    padding: 7px 9px; border-radius: 4px; font-size: 12px; margin-bottom: 12px;
+    background: var(--accent-weak); color: var(--accent);
+  }
+  .status.is-error { background: var(--err-bg); color: var(--err-fg); }
+  .status.is-warn { background: var(--warn-bg); color: var(--warn-fg); }
+  .status.is-ok { background: var(--ok-bg); color: var(--ok-fg); }
+
+  .is-busy { opacity: .6; pointer-events: none; }
+</style>
+
+  </head>
+  <body>
+    <div id="app" class="app">
+      <div id="status" class="status" hidden></div>
+
+      <section class="block">
+        <label class="label" for="text">Text</label>
+        <textarea id="text" class="textarea" rows="2" spellcheck="false">Variable</textarea>
+      </section>
+
+      <section class="block">
+        <div class="row-between">
+          <label class="label" for="font-search">Typeface</label>
+          <button id="refresh-fonts" class="link-btn" type="button" title="Reload the font list from Google Fonts">Refresh</button>
+        </div>
+        <input id="font-search" class="input" type="search" placeholder="Search variable fonts…" autocomplete="off">
+        <select id="font-select" class="select" size="6"></select>
+        <div id="font-meta" class="hint"></div>
+      </section>
+
+      <section class="block">
+        <div class="preview-frame">
+          <div id="preview" class="preview">Variable</div>
+        </div>
+        <div id="preview-hint" class="hint"></div>
+      </section>
+
+      <section class="block">
+        <div class="row-between">
+          <span class="label">Axes</span>
+          <button id="reset-axes" class="link-btn" type="button">Reset</button>
+        </div>
+        <div id="axes"></div>
+      </section>
+
+      <section class="block">
+        <span class="label">Type settings</span>
+        <div class="grid-2">
+          <label class="field">
+            <span class="field-label">Size (pt)</span>
+            <input id="font-size" class="input" type="number" min="4" max="400" step="1" value="72">
+          </label>
+          <label class="field">
+            <span class="field-label">Tracking (em)</span>
+            <input id="tracking" class="input" type="number" min="-0.2" max="1" step="0.01" value="0">
+          </label>
+          <label class="field">
+            <span class="field-label">Line height</span>
+            <input id="line-height" class="input" type="number" min="0.5" max="4" step="0.05" value="1.1">
+          </label>
+          <label class="field">
+            <span class="field-label">Colour</span>
+            <input id="color" class="input color" type="color" value="#1a1a1a">
+          </label>
+        </div>
+        <div class="seg" id="align" role="group" aria-label="Alignment">
+          <button type="button" data-value="left" class="seg-btn is-active">Left</button>
+          <button type="button" data-value="center" class="seg-btn">Center</button>
+          <button type="button" data-value="right" class="seg-btn">Right</button>
+        </div>
+      </section>
+
+      <section class="block">
+        <span class="label">Insert as</span>
+        <div class="seg" id="mode" role="group" aria-label="Insert mode">
+          <button type="button" data-value="text" class="seg-btn is-active">Editable text</button>
+          <button type="button" data-value="vector" class="seg-btn">Vector outlines</button>
+        </div>
+        <div id="mode-note" class="hint"></div>
+        <div id="fidelity" class="fidelity"></div>
+        <label class="check" id="new-slide-wrap" hidden>
+          <input id="new-slide" type="checkbox">
+          <span>Import onto a new slide instead of this one</span>
+        </label>
+      </section>
+
+      <section class="block actions">
+        <button id="insert" class="btn btn-primary" type="button">Insert</button>
+        <div class="row">
+          <button id="apply" class="btn" type="button" title="Restyle the shapes selected in the slide">Apply to selection</button>
+          <button id="load" class="btn" type="button" title="Read axis values back from a shape this add-on made">Load selection</button>
+        </div>
+      </section>
+
+      <section class="block">
+        <span class="label">Presets</span>
+        <div class="row">
+          <select id="preset-select" class="select-inline"><option value="">—</option></select>
+          <button id="preset-delete" class="btn btn-small" type="button" title="Delete the selected preset">Delete</button>
+        </div>
+        <div class="row">
+          <input id="preset-name" class="input" type="text" placeholder="Preset name">
+          <button id="preset-save" class="btn btn-small" type="button">Save</button>
+        </div>
+      </section>
+    </div>
+
+    <script>
+/**
+ * Sidebar controller.
+ *
+ * Two things happen here that are worth knowing before reading on:
+ *
+ * 1. The live preview uses the real variable font, loaded from the Google
+ *    Fonts CSS2 API with its full axis ranges, so `font-variation-settings`
+ *    can move continuously.
+ * 2. Vector export re-fetches that same font as a binary, decompresses the
+ *    woff2, and pulls real glyph outlines at the current axis values. Those
+ *    outlines go to the server, which wraps them in a PPTX and imports them as
+ *    native Slides freeform shapes.
+ */
+(function () {
+  'use strict';
+
+  var CDN = {
+    opentype: 'https://cdn.jsdelivr.net/npm/opentype.js@2.0.0/dist/opentype.min.js',
+    woff2: 'https://cdn.jsdelivr.net/npm/wawoff2@2.0.1/build/decompress_binding.js'
+  };
+
+  /** Guard against pathological input turning into a megabyte of path data. */
+  var MAX_OUTLINE_COMMANDS = 120000;
+
+  var state = {
+    fonts: [],
+    axisRegistry: {},
+    font: null,          // the selected catalog entry
+    values: {},          // axis tag -> current value
+    mode: 'text',
+    align: 'left',
+    presets: []
+  };
+
+  var els = {};
+  var fontBinaryCache = {};
+  var libsPromise = null;
+
+  // ---------------------------------------------------------------- utils
+
+  function $(id) { return document.getElementById(id); }
+
+  function debounce(fn, wait) {
+    var timer = null;
+    return function () {
+      var args = arguments;
+      clearTimeout(timer);
+      timer = setTimeout(function () { fn.apply(null, args); }, wait);
+    };
+  }
+
+  /** Promise wrapper around google.script.run. */
+  function call(name) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      google.script.run
+        .withSuccessHandler(function (result) {
+          if (result && result.ok === false) reject(new Error(result.error || 'Something went wrong.'));
+          else resolve(result);
+        })
+        .withFailureHandler(function (error) { reject(error); })
+        [name].apply(null, args);
+    });
+  }
+
+  function setStatus(message, kind) {
+    var node = els.status;
+    if (!message) { node.hidden = true; node.textContent = ''; return; }
+    node.hidden = false;
+    node.textContent = message;
+    node.className = 'status' + (kind ? ' is-' + kind : '');
+  }
+
+  function busy(isBusy) {
+    els.app.classList.toggle('is-busy', !!isBusy);
+  }
+
+  function axisInfo(tag) {
+    var known = state.axisRegistry[tag];
+    return {
+      name: known ? known.name : tag,
+      step: known ? known.step : 1,
+      precision: known ? known.precision : 0,
+      order: known ? known.order : 500,
+      unit: known && known.unit ? known.unit : ''
+    };
+  }
+
+  /** Axes Slides can express in a text shape; the rest are vector-only. */
+  var MAPPABLE = { wght: 1, wdth: 1, ital: 1, slnt: 1 };
+
+  function round(value, precision) {
+    var factor = Math.pow(10, precision || 0);
+    return Math.round(value * factor) / factor;
+  }
+
+  function sortedAxes(font) {
+    return font.axes.slice().sort(function (a, b) {
+      return axisInfo(a.tag).order - axisInfo(b.tag).order;
+    });
+  }
+
+  // ------------------------------------------------------- font CSS loading
+
+  /**
+   * Google Fonts CSS2 wants axis tags in ASCII order (uppercase custom axes
+   * before lowercase registered ones) and treats `ital` as selecting a
+   * separate face, which forces the semicolon tuple-list form.
+   */
+  function buildFontCssUrl(family, axes) {
+    var base = 'https://fonts.googleapis.com/css2?family=' +
+      encodeURIComponent(family).replace(/%20/g, '+');
+    if (!axes.length) return base + '&display=swap';
+
+    var sorted = axes.slice().sort(function (a, b) {
+      return a.tag < b.tag ? -1 : (a.tag > b.tag ? 1 : 0);
+    });
+    var range = function (axis) {
+      return axis.min === axis.max
+        ? String(axis.min)
+        : String(axis.min) + '..' + String(axis.max);
+    };
+    var tags = sorted.map(function (axis) { return axis.tag; }).join(',');
+    var hasItal = sorted.some(function (axis) { return axis.tag === 'ital'; });
+
+    var values;
+    if (!hasItal) {
+      values = sorted.map(range).join(',');
+    } else {
+      values = ['0', '1'].map(function (ital) {
+        return sorted.map(function (axis) {
+          return axis.tag === 'ital' ? ital : range(axis);
+        }).join(',');
+      }).join(';');
+    }
+    return base + ':' + tags + '@' + values + '&display=swap';
+  }
+
+  function ensurePreviewFont(font) {
+    var id = 'vf-font-css';
+    var link = document.getElementById(id);
+    if (!link) {
+      link = document.createElement('link');
+      link.id = id;
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+    var url = buildFontCssUrl(font.family, font.axes);
+    if (link.getAttribute('href') !== url) link.setAttribute('href', url);
+  }
+
+  // ------------------------------------------------------------- preview
+
+  function variationSettings() {
+    if (!state.font) return '';
+    return state.font.axes.map(function (axis) {
+      return '"' + axis.tag + '" ' + round(state.values[axis.tag], 3);
+    }).join(', ');
+  }
+
+  function renderPreview() {
+    if (!state.font) return;
+    var text = els.text.value || ' ';
+    var sizePt = Number(els.fontSize.value) || 72;
+    // Show the true relative size, capped so a 300pt headline still fits.
+    var displayPx = Math.min(sizePt * 1.333, 120);
+
+    var node = els.preview;
+    node.textContent = text;
+    node.style.fontFamily = '"' + state.font.family + '", sans-serif';
+    node.style.fontSize = displayPx + 'px';
+    node.style.fontVariationSettings = variationSettings();
+    node.style.fontWeight = state.values.wght !== undefined ? round(state.values.wght, 0) : 400;
+    node.style.fontStyle = state.values.ital >= 0.5 ? 'italic' : 'normal';
+    node.style.letterSpacing = (Number(els.tracking.value) || 0) + 'em';
+    node.style.lineHeight = Number(els.lineHeight.value) || 1.1;
+    node.style.color = els.color.value;
+    node.style.textAlign = state.align;
+
+    els.previewHint.textContent = displayPx < sizePt * 1.333
+      ? 'Preview scaled down; inserts at ' + sizePt + 'pt.'
+      : '';
+  }
+
+  // --------------------------------------------------------- axis controls
+
+  function renderAxes() {
+    var container = els.axes;
+    container.innerHTML = '';
+    if (!state.font) return;
+
+    sortedAxes(state.font).forEach(function (axis) {
+      var info = axisInfo(axis.tag);
+      var wrap = document.createElement('div');
+      wrap.className = 'axis' + (MAPPABLE[axis.tag] ? '' : ' axis-unmapped');
+
+      var head = document.createElement('div');
+      head.className = 'axis-head';
+      head.innerHTML =
+        '<span><span class="axis-name"></span> <span class="axis-tag"></span></span>';
+      head.querySelector('.axis-name').textContent = info.name;
+      head.querySelector('.axis-tag').textContent = axis.tag;
+
+      var number = document.createElement('input');
+      number.className = 'axis-value';
+      number.type = 'number';
+      number.min = axis.min;
+      number.max = axis.max;
+      number.step = info.step;
+      number.value = round(state.values[axis.tag], info.precision);
+      head.appendChild(number);
+      wrap.appendChild(head);
+
+      var slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = axis.min;
+      slider.max = axis.max;
+      slider.step = info.step;
+      slider.value = state.values[axis.tag];
+      wrap.appendChild(slider);
+
+      function apply(value, syncSlider, syncNumber) {
+        var clamped = Math.min(axis.max, Math.max(axis.min, Number(value)));
+        if (isNaN(clamped)) return;
+        state.values[axis.tag] = clamped;
+        if (syncSlider) slider.value = clamped;
+        if (syncNumber) number.value = round(clamped, info.precision);
+        renderPreview();
+        scheduleFidelity();
+      }
+
+      slider.addEventListener('input', function () { apply(slider.value, false, true); });
+      number.addEventListener('change', function () { apply(number.value, true, false); });
+
+      container.appendChild(wrap);
+    });
+  }
+
+  function resetAxes() {
+    if (!state.font) return;
+    state.font.axes.forEach(function (axis) {
+      state.values[axis.tag] = axis.defaultValue;
+    });
+    renderAxes();
+    renderPreview();
+    scheduleFidelity();
+  }
+
+  // ------------------------------------------------------- fidelity report
+
+  function currentSpec() {
+    return {
+      family: state.font ? state.font.family : '',
+      axes: state.font ? state.font.axes : [],
+      values: state.values,
+      text: els.text.value,
+      fontSize: Number(els.fontSize.value) || 72,
+      tracking: Number(els.tracking.value) || 0,
+      lineSpacing: (Number(els.lineHeight.value) || 1.1) * 100,
+      color: els.color.value,
+      align: state.align,
+      allowFauxItalic: true
+    };
+  }
+
+  function renderFidelity(resolved) {
+    var container = els.fidelity;
+    container.innerHTML = '';
+    if (state.mode !== 'text' || !resolved) return;
+
+    var header = document.createElement('div');
+    header.className = 'hint';
+    header.textContent = 'Slides will render: ' + resolved.fontFamily + ' ' +
+      resolved.weight + (resolved.italic ? ' italic' : '');
+    container.appendChild(header);
+
+    resolved.notes.forEach(function (note) {
+      var row = document.createElement('div');
+      row.className = 'fid-row fid-' + note.status;
+      var dot = document.createElement('span');
+      dot.className = 'fid-dot';
+      var name = document.createElement('span');
+      name.className = 'fid-name';
+      name.textContent = note.name;
+      var detail = document.createElement('span');
+      detail.className = 'fid-detail';
+      detail.textContent = note.detail;
+      row.appendChild(dot);
+      row.appendChild(name);
+      row.appendChild(detail);
+      container.appendChild(row);
+    });
+
+    if (Number(els.tracking.value)) {
+      var row = document.createElement('div');
+      row.className = 'fid-row fid-dropped';
+      row.innerHTML = '<span class="fid-dot"></span><span class="fid-name">Tracking</span>' +
+        '<span class="fid-detail">Slides has no letter-spacing control. ' +
+        'Vector outlines keep it.</span>';
+      container.appendChild(row);
+    }
+  }
+
+  var scheduleFidelity = debounce(function () {
+    if (state.mode !== 'text' || !state.font) return;
+    call('apiResolveStyle', currentSpec())
+      .then(function (result) { renderFidelity(result.resolved); })
+      .catch(function () { /* The report is advisory; never block on it. */ });
+  }, 250);
+
+  // ----------------------------------------------------- outline extraction
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = function () { reject(new Error('Could not load ' + src)); };
+      document.head.appendChild(script);
+    });
+  }
+
+  /**
+   * Load the two libraries vector export needs. Order matters: the woff2
+   * decompressor is an Emscripten module that publishes a global `Module`,
+   * which we capture before anything else can overwrite it.
+   */
+  function ensureLibs() {
+    if (libsPromise) return libsPromise;
+    libsPromise = loadScript(CDN.woff2)
+      .then(function () {
+        var emscripten = window.Module;
+        if (!emscripten) throw new Error('The woff2 decompressor did not initialise.');
+        return new Promise(function (resolve) {
+          if (emscripten.calledRun) resolve(emscripten);
+          else emscripten.onRuntimeInitialized = function () { resolve(emscripten); };
+        });
+      })
+      .then(function (emscripten) {
+        window.vfWoff2 = emscripten;
+        return loadScript(CDN.opentype);
+      })
+      .catch(function (error) {
+        libsPromise = null; // Allow a retry after a transient network failure.
+        throw error;
+      });
+    return libsPromise;
+  }
+
+  function parseUnicodeRange(text) {
+    return text.split(',').map(function (part) {
+      var token = part.trim().replace(/^U\+/i, '');
+      if (token.indexOf('-') !== -1) {
+        var halves = token.split('-');
+        return [parseInt(halves[0], 16), parseInt(halves[1], 16)];
+      }
+      if (token.indexOf('?') !== -1) {
+        return [parseInt(token.replace(/\?/g, '0'), 16), parseInt(token.replace(/\?/g, 'F'), 16)];
+      }
+      var single = parseInt(token, 16);
+      return [single, single];
+    });
+  }
+
+  function rangeCovers(ranges, codepoints) {
+    return codepoints.every(function (code) {
+      return ranges.some(function (pair) { return code >= pair[0] && code <= pair[1]; });
+    });
+  }
+
+  /**
+   * Choose the @font-face subset that actually contains the user's characters.
+   * Google Fonts splits a family across latin / latin-ext / cyrillic / … and we
+   * only want to download the one we need.
+   */
+  function pickSubsetUrl(css, text) {
+    var codepoints = [];
+    for (var i = 0; i < text.length; i++) {
+      var code = text.codePointAt(i);
+      if (code > 32) codepoints.push(code);
+    }
+    var blocks = css.split('@font-face').slice(1);
+    var fallback = null;
+    for (var b = 0; b < blocks.length; b++) {
+      var block = blocks[b];
+      // Skip italic faces unless the design asks for one.
+      var isItalic = /font-style:\s*italic/.test(block);
+      if (isItalic !== (state.values.ital >= 0.5)) continue;
+      var src = block.match(/src:\s*url\(([^)]+)\)/);
+      if (!src) continue;
+      if (!fallback) fallback = src[1];
+      var range = block.match(/unicode-range:\s*([^;]+);/);
+      if (!range) return src[1];
+      if (rangeCovers(parseUnicodeRange(range[1]), codepoints)) return src[1];
+    }
+    return fallback;
+  }
+
+  function fontCacheKey(family) {
+    return family + '|' + (state.values.ital >= 0.5 ? 'italic' : 'normal');
+  }
+
+  function loadFontBinary(font, text) {
+    var key = fontCacheKey(font.family);
+    if (fontBinaryCache[key]) return Promise.resolve(fontBinaryCache[key]);
+
+    return ensureLibs()
+      .then(function () {
+        return fetch(buildFontCssUrl(font.family, font.axes)).then(function (response) {
+          if (!response.ok) throw new Error('Google Fonts returned HTTP ' + response.status);
+          return response.text();
+        });
+      })
+      .then(function (css) {
+        var url = pickSubsetUrl(css, text);
+        if (!url) throw new Error('No usable font file was listed for ' + font.family + '.');
+        return fetch(url);
+      })
+      .then(function (response) {
+        if (!response.ok) throw new Error('Font download failed (HTTP ' + response.status + ').');
+        return response.arrayBuffer();
+      })
+      .then(function (buffer) {
+        var decompressed = window.vfWoff2.decompress(new Uint8Array(buffer));
+        var bytes = new Uint8Array(decompressed);
+        var parsed = window.opentype.parse(
+          bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length));
+        fontBinaryCache[key] = parsed;
+        return parsed;
+      });
+  }
+
+  function commandToArray(command) {
+    if (command.type === 'M' || command.type === 'L') return [command.type, command.x, command.y];
+    if (command.type === 'C') {
+      return ['C', command.x1, command.y1, command.x2, command.y2, command.x, command.y];
+    }
+    if (command.type === 'Q') return ['Q', command.x1, command.y1, command.x, command.y];
+    return ['Z'];
+  }
+
+  /**
+   * Lay the text out and return flat path commands in points, y down, first
+   * baseline at y = 0 (which is what the DrawingML builder expects).
+   */
+  function buildOutlines(parsedFont, spec) {
+    var coordinates = {};
+    (parsedFont.tables.fvar ? parsedFont.tables.fvar.axes : []).forEach(function (axis) {
+      var value = spec.values[axis.tag];
+      coordinates[axis.tag] = value === undefined ? axis.defaultValue : value;
+    });
+    if (parsedFont.variation && parsedFont.tables.fvar) {
+      parsedFont.variation.set(coordinates);
+    }
+
+    // opentype.js applies the new coordinates lazily, on the first glyph it is
+    // asked to draw. Without this warm-up the advance widths below are still
+    // the previous instance's. Do not remove.
+    parsedFont.getPath('A', 0, 0, spec.fontSize);
+
+    var options = { kerning: true, letterSpacing: spec.tracking || 0 };
+    var lines = String(spec.text).split('\n');
+    var widths = lines.map(function (line) {
+      return line ? parsedFont.getAdvanceWidth(line, spec.fontSize, options) : 0;
+    });
+    var maxWidth = Math.max.apply(null, widths.concat([0]));
+    var lineAdvance = spec.fontSize * ((spec.lineSpacing || 110) / 100);
+
+    var commands = [];
+    lines.forEach(function (line, index) {
+      if (!line.trim()) return;
+      var offsetX = 0;
+      if (spec.align === 'center') offsetX = (maxWidth - widths[index]) / 2;
+      else if (spec.align === 'right') offsetX = maxWidth - widths[index];
+      var path = parsedFont.getPath(line, offsetX, index * lineAdvance, spec.fontSize, options);
+      path.commands.forEach(function (command) {
+        commands.push(commandToArray(command));
+      });
+    });
+    return commands;
+  }
+
+  // ------------------------------------------------------------- actions
+
+  function insert() {
+    if (!state.font) { setStatus('Pick a typeface first.', 'error'); return; }
+    var spec = currentSpec();
+    if (!spec.text.trim()) { setStatus('Type something to insert.', 'error'); return; }
+
+    busy(true);
+    if (state.mode === 'text') {
+      setStatus('Inserting text box…');
+      // Measuring before the webfont arrives would size the box against the
+      // fallback face, so wait for it.
+      var ready = document.fonts && document.fonts.ready
+        ? document.fonts.ready
+        : Promise.resolve();
+      ready
+        .then(function () {
+          measureForSlides(spec);
+          return call('apiInsertTextShape', spec);
+        })
+        .then(function (result) {
+          setStatus(result.message, 'ok');
+          renderFidelity(result.resolved);
+        })
+        .catch(function (error) { setStatus(error.message, 'error'); })
+        .then(function () { busy(false); });
+      return;
+    }
+
+    setStatus('Building vector outlines…');
+    loadFontBinary(state.font, spec.text)
+      .then(function (parsedFont) {
+        var commands = buildOutlines(parsedFont, spec);
+        if (!commands.length) throw new Error('That text produced no visible outlines.');
+        if (commands.length > MAX_OUTLINE_COMMANDS) {
+          throw new Error('That is too much text to outline (' + commands.length +
+            ' segments). Try a shorter headline.');
+        }
+        setStatus('Importing ' + commands.length + ' path segments…');
+        return call('apiInsertVector', {
+          commands: commands,
+          color: spec.color,
+          text: spec.text,
+          family: spec.family,
+          spec: { family: spec.family, values: spec.values, fontSize: spec.fontSize, color: spec.color },
+          newSlide: els.newSlide.checked
+        });
+      })
+      .then(function (result) {
+        var suffix = result.scale && result.scale < 0.999
+          ? ' Scaled to ' + Math.round(result.scale * 100) + '% to fit the slide.'
+          : '';
+        setStatus(result.message + suffix, 'ok');
+      })
+      .catch(function (error) { setStatus(error.message, 'error'); })
+      .then(function () { busy(false); });
+  }
+
+  /**
+   * Measure the preview so the inserted text box matches what the user saw.
+   * Slides lays text out slightly differently, so the server adds slack.
+   */
+  function measureForSlides(spec) {
+    var probe = document.createElement('div');
+    probe.style.cssText =
+      'position:absolute;visibility:hidden;white-space:pre;left:-9999px;top:0';
+    probe.style.fontFamily = '"' + spec.family + '", sans-serif';
+    probe.style.fontSize = spec.fontSize + 'pt';
+    probe.style.fontVariationSettings = variationSettings();
+    probe.style.letterSpacing = spec.tracking + 'em';
+    probe.style.lineHeight = spec.lineSpacing / 100;
+    probe.textContent = spec.text;
+    document.body.appendChild(probe);
+    var rect = probe.getBoundingClientRect();
+    document.body.removeChild(probe);
+    // CSS pixels are 1/96in, points are 1/72in.
+    spec.widthPt = rect.width * 0.75;
+    spec.heightPt = rect.height * 0.75;
+  }
+
+  function applyToSelection() {
+    if (!state.font) return;
+    busy(true);
+    setStatus('Restyling selection…');
+    call('apiApplyToSelection', currentSpec())
+      .then(function (result) {
+        setStatus(result.message, 'ok');
+        renderFidelity(result.resolved);
+      })
+      .catch(function (error) { setStatus(error.message, 'error'); })
+      .then(function () { busy(false); });
+  }
+
+  function loadFromSelection() {
+    busy(true);
+    call('apiLoadFromSelection')
+      .then(function (result) {
+        if (!result.ok) { setStatus(result.message, 'warn'); return; }
+        applySpec(result.spec);
+        setStatus('Loaded settings from the selected shape.', 'ok');
+      })
+      .catch(function (error) { setStatus(error.message, 'error'); })
+      .then(function () { busy(false); });
+  }
+
+  /** Restore a saved or round-tripped design into the controls. */
+  function applySpec(spec) {
+    var match = state.fonts.filter(function (font) { return font.family === spec.family; })[0];
+    if (match) selectFont(match, spec.values);
+    if (spec.text !== undefined) els.text.value = spec.text;
+    if (spec.fontSize) els.fontSize.value = spec.fontSize;
+    if (spec.tracking !== undefined) els.tracking.value = spec.tracking;
+    if (spec.lineSpacing) els.lineHeight.value = spec.lineSpacing / 100;
+    if (spec.color) els.color.value = spec.color;
+    if (spec.align) setSegment(els.align, spec.align);
+    renderPreview();
+    scheduleFidelity();
+  }
+
+  // ------------------------------------------------------------- presets
+
+  function renderPresets() {
+    els.presetSelect.innerHTML = '<option value="">—</option>';
+    state.presets.forEach(function (preset) {
+      var option = document.createElement('option');
+      option.value = preset.name;
+      option.textContent = preset.name;
+      els.presetSelect.appendChild(option);
+    });
+  }
+
+  function savePreset() {
+    var name = els.presetName.value.trim();
+    if (!name) { setStatus('Give the preset a name first.', 'error'); return; }
+    busy(true);
+    call('apiSavePreset', name, currentSpec())
+      .then(function (result) {
+        state.presets = result.presets;
+        renderPresets();
+        els.presetName.value = '';
+        els.presetSelect.value = name;
+        setStatus('Saved preset "' + name + '".', 'ok');
+      })
+      .catch(function (error) { setStatus(error.message, 'error'); })
+      .then(function () { busy(false); });
+  }
+
+  function deletePreset() {
+    var name = els.presetSelect.value;
+    if (!name) return;
+    busy(true);
+    call('apiDeletePreset', name)
+      .then(function (result) {
+        state.presets = result.presets;
+        renderPresets();
+        setStatus('Deleted preset "' + name + '".', 'ok');
+      })
+      .catch(function (error) { setStatus(error.message, 'error'); })
+      .then(function () { busy(false); });
+  }
+
+  // --------------------------------------------------------- font picking
+
+  function renderFontList(filter) {
+    var needle = (filter || '').trim().toLowerCase();
+    var matches = state.fonts.filter(function (font) {
+      return !needle || font.family.toLowerCase().indexOf(needle) !== -1;
+    });
+    els.fontSelect.innerHTML = '';
+    matches.slice(0, 400).forEach(function (font) {
+      var option = document.createElement('option');
+      option.value = font.family;
+      option.textContent = font.family + '  (' +
+        font.axes.map(function (axis) { return axis.tag; }).join(' ') + ')';
+      els.fontSelect.appendChild(option);
+    });
+    if (state.font) els.fontSelect.value = state.font.family;
+    els.fontMeta.textContent = matches.length + ' of ' + state.fonts.length + ' variable fonts';
+  }
+
+  function selectFont(font, values) {
+    state.font = font;
+    state.values = {};
+    font.axes.forEach(function (axis) {
+      var supplied = values && values[axis.tag];
+      state.values[axis.tag] = supplied === undefined
+        ? axis.defaultValue
+        : Math.min(axis.max, Math.max(axis.min, supplied));
+    });
+    els.fontSelect.value = font.family;
+    ensurePreviewFont(font);
+    renderAxes();
+    renderPreview();
+    scheduleFidelity();
+  }
+
+  // ------------------------------------------------------------ segments
+
+  function setSegment(group, value) {
+    Array.prototype.forEach.call(group.querySelectorAll('.seg-btn'), function (button) {
+      button.classList.toggle('is-active', button.dataset.value === value);
+    });
+    if (group === els.align) state.align = value;
+    if (group === els.mode) {
+      state.mode = value;
+      els.newSlideWrap.hidden = value !== 'vector';
+      els.modeNote.textContent = value === 'text'
+        ? 'A real Slides text box. Fully editable text, but Slides snaps to the nearest static cut of the family.'
+        : 'True glyph outlines as native Slides freeform shapes. Every axis is exact; the result is vector art, not text.';
+      els.fidelity.innerHTML = '';
+      if (value === 'text') scheduleFidelity();
+    }
+  }
+
+  function wireSegment(group) {
+    group.addEventListener('click', function (event) {
+      var button = event.target.closest('.seg-btn');
+      if (!button) return;
+      setSegment(group, button.dataset.value);
+      renderPreview();
+    });
+  }
+
+  // ------------------------------------------------------------ bootstrap
+
+  function init() {
+    [
+      'app', 'status', 'text', 'font-search', 'font-select', 'font-meta', 'preview',
+      'preview-hint', 'axes', 'reset-axes', 'font-size', 'tracking', 'line-height',
+      'color', 'align', 'mode', 'mode-note', 'fidelity', 'new-slide', 'new-slide-wrap',
+      'insert', 'apply', 'load', 'preset-select', 'preset-name', 'preset-save',
+      'preset-delete', 'refresh-fonts'
+    ].forEach(function (id) {
+      els[id.replace(/-(\w)/g, function (_, c) { return c.toUpperCase(); })] = $(id);
+    });
+
+    wireSegment(els.align);
+    wireSegment(els.mode);
+    setSegment(els.mode, 'text');
+
+    els.fontSearch.addEventListener('input', function () {
+      renderFontList(els.fontSearch.value);
+    });
+    els.fontSelect.addEventListener('change', function () {
+      var chosen = state.fonts.filter(function (font) {
+        return font.family === els.fontSelect.value;
+      })[0];
+      if (chosen) selectFont(chosen);
+    });
+
+    var repaint = debounce(function () { renderPreview(); scheduleFidelity(); }, 60);
+    ['text', 'fontSize', 'tracking', 'lineHeight', 'color'].forEach(function (key) {
+      els[key].addEventListener('input', repaint);
+    });
+
+    els.resetAxes.addEventListener('click', resetAxes);
+    els.insert.addEventListener('click', insert);
+    els.apply.addEventListener('click', applyToSelection);
+    els.load.addEventListener('click', loadFromSelection);
+    els.presetSave.addEventListener('click', savePreset);
+    els.presetDelete.addEventListener('click', deletePreset);
+    els.presetSelect.addEventListener('change', function () {
+      var preset = state.presets.filter(function (item) {
+        return item.name === els.presetSelect.value;
+      })[0];
+      if (preset) applySpec(preset.spec);
+    });
+    els.refreshFonts.addEventListener('click', function () {
+      busy(true);
+      setStatus('Reloading the font list…');
+      call('apiRefreshFonts')
+        .then(function (result) {
+          state.fonts = result.fonts;
+          renderFontList(els.fontSearch.value);
+          setStatus(result.warning || ('Loaded ' + result.fonts.length + ' variable fonts.'),
+            result.warning ? 'warn' : 'ok');
+        })
+        .catch(function (error) { setStatus(error.message, 'error'); })
+        .then(function () { busy(false); });
+    });
+
+    setStatus('Loading fonts…');
+    call('apiBootstrap')
+      .then(function (result) {
+        state.fonts = result.fonts || [];
+        state.axisRegistry = result.axisRegistry || {};
+        state.presets = result.presets || [];
+        renderPresets();
+        renderFontList('');
+        var initial = state.fonts.filter(function (font) {
+          return font.family === 'Roboto Flex';
+        })[0] || state.fonts[0];
+        if (initial) selectFont(initial);
+        setStatus(result.warning || '', result.warning ? 'warn' : '');
+      })
+      .catch(function (error) {
+        setStatus('Could not load fonts: ' + error.message, 'error');
+      });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+  </body>
+</html>

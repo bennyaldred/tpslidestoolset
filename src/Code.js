@@ -49,8 +49,7 @@ function apiBootstrap() {
       source: catalog.source,
       warning: catalog.warning,
       axisRegistry: VF_AXIS_REGISTRY,
-      presets: vfListPresets(),
-      prefs: vfGetPrefs()
+      presets: vfListPresets()
     };
   });
 }
@@ -98,8 +97,4 @@ function apiSavePreset(name, spec) {
 
 function apiDeletePreset(name) {
   return vfWrap(function () { return { presets: vfDeletePreset(name) }; });
-}
-
-function apiSavePrefs(prefs) {
-  return vfWrap(function () { return { prefs: vfSavePrefs(prefs) }; });
 }

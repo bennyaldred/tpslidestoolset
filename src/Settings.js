@@ -4,7 +4,6 @@
  */
 
 var VF_PRESETS_KEY = 'vf-presets-v1';
-var VF_PREFS_KEY = 'vf-prefs-v1';
 var VF_MAX_PRESETS = 40;
 
 function vfUserProperties() {
@@ -46,13 +45,4 @@ function vfDeletePreset(name) {
   });
   vfUserProperties().setProperty(VF_PRESETS_KEY, JSON.stringify(presets));
   return presets;
-}
-
-function vfGetPrefs() {
-  return vfReadJson(VF_PREFS_KEY, {});
-}
-
-function vfSavePrefs(prefs) {
-  vfUserProperties().setProperty(VF_PREFS_KEY, JSON.stringify(prefs || {}));
-  return prefs;
 }

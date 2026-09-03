@@ -43,40 +43,76 @@ copy it across" trick — done for you in one click, without leaving Slides.
 
 ## Install
 
-The add-on is a container-bound Apps Script project. There is no marketplace
-listing; you deploy it into your own presentation (or your own Workspace).
+Everything lives in one Apps Script project. `build/` holds the whole add-on
+as **three files** you can paste straight into the editor — no npm, no clasp.
 
-**With [clasp](https://github.com/google/clasp) (recommended):**
+### Paste it in (5 minutes)
+
+1. Open any Google Slides deck → **Extensions → Apps Script**.
+2. Rename the default `Code.gs` file to **Code**, and replace its contents with
+   [`build/Code.gs`](build/Code.gs).
+3. **+ → HTML**, name it **Sidebar** (exactly — `Code.gs` loads it by name), and
+   replace its contents with [`build/Sidebar.html`](build/Sidebar.html).
+4. **Project Settings** → tick *Show "appsscript.json" manifest file in editor*.
+   Back in the editor, replace `appsscript.json` with
+   [`build/appsscript.json`](build/appsscript.json).
+5. Save, then reload the Slides deck.
+6. **Extensions → Variable Type → Open Variable Type**. Approve the permission
+   prompt on first run.
+
+That is a working add-on for you, in that deck. To use it everywhere, publish it
+(below).
+
+### Or with clasp
 
 ```bash
 npm install
 npx clasp login
-npx clasp create --type slides --title "Variable Type"   # or: clasp clone <scriptId>
-cp .clasp.json.example .clasp.json                        # then set your scriptId
-npx clasp push
+npx clasp create --type slides --title "Variable Type"
+cp .clasp.json.example .clasp.json      # then set your scriptId
+npx clasp push                          # pushes src/, not build/
 ```
 
-**By hand:** in your presentation choose *Extensions → Apps Script*, then create
-one file per file in `src/` (the `.js` files become `.gs`; the `.html` files
-keep their names) and paste the contents across. Update the manifest via
-*Project Settings → Show "appsscript.json"*.
+## Publishing it as a Workspace add-on
 
-Then reload the presentation and open **Extensions → Variable Type → Open
-Variable Type**.
+Once the pasted version works, turn the same script into an add-on your whole
+domain (or the public) can install. This is a **Google Workspace Editor
+Add-on** — the classic type, which is what allows the HTML sidebar the live
+font preview needs. (Card-based Workspace Add-ons cannot render a font
+preview.)
 
-### Permissions it asks for, and why
+1. **Deploy a version.** In the Apps Script editor: *Deploy → New deployment →
+   Add-on*. Note the **Deployment ID**, and the **Script ID** from
+   *Project Settings*.
+2. **Attach a Cloud project.** *Project Settings → Google Cloud Platform
+   project → Change project*, and point it at a standard GCP project you own.
+   A default project cannot be published.
+3. **Configure the OAuth consent screen** in that Cloud project: app name, a
+   support email, a logo, plus links to a homepage, privacy policy and terms.
+   Set the user type — *Internal* for your own Workspace domain, *External* for
+   the public.
+4. **Enable the Google Workspace Marketplace SDK** in the Cloud project, then
+   fill in its *App Configuration* (add-on type: **Slides**, with the Script ID
+   and Deployment ID from step 1) and its *Store Listing*.
+5. **Publish.** Internal apps go live for your domain immediately. Public
+   listings go through Google's review.
 
-| Scope | Why |
-|---|---|
-| `presentations` | Read and write your slides. The broad scope (rather than `presentations.currentonly`) is needed because vector mode opens the temporary converted file. |
-| `drive.file` | Create and delete the temporary PPTX/Slides file used by vector mode. Limited to files this add-on creates — it cannot see the rest of your Drive. |
-| `script.external_request` | Fetch the font catalogue from Google Fonts. |
-| `script.container.ui` | Show the sidebar. |
-| `script.storage` | Save your presets. |
+### One thing to know before you publish publicly
 
-If you only ever use **Editable text** mode, you can narrow the manifest to
-`presentations.currentonly` and drop `drive.file`; vector mode will then fail
-with a permission error, and nothing else changes.
+`https://www.googleapis.com/auth/presentations` is a **sensitive** scope, so a
+public listing needs Google's OAuth verification (an extra review, typically
+including a security questionnaire). Two ways around it:
+
+- **Publish internally** to your own Workspace domain — no verification needed.
+- **Ship editable-text mode only.** Drop `presentations` down to
+  `presentations.currentonly` and remove `drive.file` from the manifest. Both
+  remaining scopes are non-sensitive. Vector mode then fails with a permission
+  error and everything else works, because only vector mode opens the temporary
+  converted file.
+
+`urlFetchWhitelist` is already set in the manifest — Marketplace requires it for
+any add-on that calls `UrlFetchApp`, and it covers the two endpoints the server
+touches (the Google Fonts catalogue, and Drive for the vector conversion).
 
 ## Using it
 
@@ -109,9 +145,13 @@ If any row is amber or red and the design matters, switch to vector outlines.
 
 ```bash
 npm install
-npm test        # 33 unit tests, no network or Google account needed
-npm run preview # builds dist/preview.html — the sidebar with a mock backend
+npm test         # 33 unit tests, no network or Google account needed
+npm run preview  # dist/preview.html — the sidebar with a mock backend
+npm run build    # build/ — the three paste-ready Apps Script files
 ```
+
+`src/` is the source of truth. `build/` is generated and committed so it can be
+copied straight out of GitHub; rebuild it after any change to `src/`.
 
 `dist/preview.html` runs the real mapping and fidelity code against fixture
 fonts, so the UI can be iterated on in a normal browser without deploying.

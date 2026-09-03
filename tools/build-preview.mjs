@@ -59,7 +59,7 @@ ${read('FontMapping.js')}
   var handlers = {
     apiBootstrap: function () {
       return { ok: true, fonts: FONTS, source: 'preview-fixture', presets: presets,
-               prefs: {}, axisRegistry: VF_AXIS_REGISTRY,
+               axisRegistry: VF_AXIS_REGISTRY,
                warning: 'Local preview — using fixture fonts and a mock backend.' };
     },
     apiRefreshFonts: function () { return { ok: true, fonts: FONTS, source: 'preview-fixture' }; },
@@ -88,8 +88,7 @@ ${read('FontMapping.js')}
     apiDeletePreset: function (name) {
       presets = presets.filter(function (p) { return p.name !== name; });
       return { ok: true, presets: presets };
-    },
-    apiSavePrefs: function (prefs) { return { ok: true, prefs: prefs }; }
+    }
   };
 
   function makeRunner(success, failure) {
