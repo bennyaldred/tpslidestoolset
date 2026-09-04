@@ -131,6 +131,10 @@ The sidebar has two tabs.
   bundled list if the fetch fails.
 - **Axes** — one slider per axis, with a numeric field for exact values.
 - **Type settings** — size, tracking, line height, colour, alignment.
+- **Merge into one shape** — off by default. Normally each outer contour is
+  its own shape, which keeps the geometry untouched and letters individually
+  selectable. Slides fills each shape separately, though, so a gradient fill
+  repeats on every letter; tick this to get one compound path instead.
 - **Insert vector outlines** — drops the design on the current slide as a group
   of vector shapes.
 
@@ -222,10 +226,13 @@ Script → Executions* to see the server-side error.
 - **Outlines are not text.** You cannot retype them. Design first, insert last.
 - **Shaping is full OpenType.** Vector mode shapes with HarfBuzz, so kerning,
   ligatures and complex scripts behave as they do in the browser.
-- **Each insert is a group, not one shape.** There is one shape per outer
-  contour — roughly one per letter, more for letters with counters — grouped
-  together. That is what keeps the geometry exact, and it makes individual
-  letters selectable inside the group.
+- **Each insert is a group, not one shape**, unless *Merge into one shape* is
+  ticked. There is one shape per outer contour — roughly one per letter, more
+  for letters with counters — grouped together. That is what keeps the geometry
+  exact, and it makes individual letters selectable inside the group.
+- **Flattening cannot be applied afterwards.** The Slides API exposes no path
+  data on a shape, so there is nothing to read back out of a selection; the
+  choice has to be made at insert time.
 - **Vector mode needs a CDN.** HarfBuzz (WebAssembly), the woff2 decompressor
   and `paper.js` load from jsDelivr. If your network blocks it, vector mode
   reports the failure and editable-text mode still works.

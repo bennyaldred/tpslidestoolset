@@ -197,7 +197,8 @@ function vfInsertVector(payload) {
     offsetYEmu: Math.round((slideHeightEmu - extHeightEmu) / 2),
     extWidthEmu: extWidthEmu,
     extHeightEmu: extHeightEmu,
-    bounds: payload.frame ? bounds : undefined
+    bounds: payload.frame ? bounds : undefined,
+    singlePath: !!payload.singlePath
   });
 
   var parts = vfBuildPptxParts({
@@ -236,8 +237,9 @@ function vfInsertVector(payload) {
 
     return {
       ok: true,
-      message: 'Inserted ' + copied.length +
-        (copied.length === 1 ? ' vector shape.' : ' vector shapes (grouped).'),
+      message: copied.length === 1
+        ? 'Inserted as one vector shape.'
+        : 'Inserted ' + copied.length + ' vector shapes (grouped).',
       scale: fitted.scale
     };
   } finally {

@@ -147,7 +147,67 @@ The first two rows measure against opentype.js, which was itself wrong; only
 the last row measures against the browser, and it is the one that matters. The
 remaining 0.092% is antialiasing along contour edges, not geometry.
 
-## Why not a raster image## Why not a raster image
+## Flattening into one compound path
+
+Emitting a shape per outer contour has one cost: Slides applies a fill to each
+shape separately, so a gradient repeats on every letter rather than running
+across the word. *Merge into one shape* trades the untouched geometry for a
+single compound path.
+
+That needs the overlaps genuinely gone, which is the boolean union that failed
+the first time round. It works now for two reasons: contours are already
+cleaned of self-intersections before it runs, and the union operates on the
+**grouped** paths rather than on loose contours. Each group — an outer contour
+plus the counters inside it — is already a valid shape, so the boolean only has
+to resolve overlaps *between* groups, which is what these libraries handle well.
+
+Measured across 19 families at two axis settings each, rendering the result
+under even-odd against the browser's own rendering:
+
+| | worst case | over 0.05% |
+|---|---|---|
+| `resolveCrossings()` over all contours | 2.66% | 6 of 38 |
+| union of per-group paths | **0.16%** | 3 of 38 |
+
+The three residuals are identical with and without flattening, so they come
+from the base pipeline, not the union. If the union ever returns something
+whose extent disagrees with the input, the insert falls back to separate shapes
+and says so.
+
+There is no way to flatten a selection after the fact: `Shape` carries no path
+data in the Slides API, so an already-inserted group cannot be read back.
+
+## Why not a raster image## Flattening into one compound path
+
+Emitting a shape per outer contour has one cost: Slides applies a fill to each
+shape separately, so a gradient repeats on every letter rather than running
+across the word. *Merge into one shape* trades the untouched geometry for a
+single compound path.
+
+That needs the overlaps genuinely gone, which is the boolean union that failed
+the first time round. It works now for two reasons: contours are already
+cleaned of self-intersections before it runs, and the union operates on the
+**grouped** paths rather than on loose contours. Each group — an outer contour
+plus the counters inside it — is already a valid shape, so the boolean only has
+to resolve overlaps *between* groups, which is what these libraries handle well.
+
+Measured across 19 families at two axis settings each, rendering the result
+under even-odd against the browser's own rendering:
+
+| | worst case | over 0.05% |
+|---|---|---|
+| `resolveCrossings()` over all contours | 2.66% | 6 of 38 |
+| union of per-group paths | **0.16%** | 3 of 38 |
+
+The three residuals are identical with and without flattening, so they come
+from the base pipeline, not the union. If the union ever returns something
+whose extent disagrees with the input, the insert falls back to separate shapes
+and says so.
+
+There is no way to flatten a selection after the fact: `Shape` carries no path
+data in the Slides API, so an already-inserted group cannot be read back.
+
+## Why not a raster image
 
 An earlier draft rendered the design to PNG via an SVG `foreignObject` with the
 font inlined as a data URI. It was pixel-exact and completely inflexible: no

@@ -69,10 +69,19 @@
         </div>
       </section>
 
+      <section class="block">
+        <label class="check">
+          <input id="flatten" type="checkbox">
+          <span>Merge into one shape — needed for a gradient fill, which Slides
+            otherwise repeats on every letter. Individual letters stop being
+            selectable.</span>
+        </label>
+      </section>
+
       <section class="block actions">
         <button id="insert" class="btn btn-primary" type="button">Insert vector outlines</button>
-        <div class="hint">Inserted as native Slides vector shapes, grouped. Every
-          axis is exact; the result is artwork, not editable text.</div>
+        <div id="insert-note" class="hint">Inserted as native Slides vector shapes,
+          grouped. Every axis is exact; the result is artwork, not editable text.</div>
       </section>
       </div>
 

@@ -154,6 +154,9 @@
   }
   .btn-primary:hover:not(:disabled) { background: #1765cc; }
 
+  .check { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: var(--muted); }
+  .check input { margin: 2px 0 0; flex: none; }
+
   /* --- Status --------------------------------------------------------- */
   .status {
     padding: 7px 9px; border-radius: 4px; font-size: 12px; margin-bottom: 12px;
@@ -306,10 +309,19 @@
         </div>
       </section>
 
+      <section class="block">
+        <label class="check">
+          <input id="flatten" type="checkbox">
+          <span>Merge into one shape — needed for a gradient fill, which Slides
+            otherwise repeats on every letter. Individual letters stop being
+            selectable.</span>
+        </label>
+      </section>
+
       <section class="block actions">
         <button id="insert" class="btn btn-primary" type="button">Insert vector outlines</button>
-        <div class="hint">Inserted as native Slides vector shapes, grouped. Every
-          axis is exact; the result is artwork, not editable text.</div>
+        <div id="insert-note" class="hint">Inserted as native Slides vector shapes,
+          grouped. Every axis is exact; the result is artwork, not editable text.</div>
       </section>
       </div>
 
@@ -924,6 +936,139 @@
   }
 
   /** Command arrays -> an SVG path string, which is what paper.js parses. */
+  /**
+   * Group contours into {outer + its holes} sets.
+   *
+   * This mirrors vfGroupContours in Outline.js, which is what the server uses
+   * to emit one shape per outer contour. Flattening needs the same grouping
+   * client-side, because the boolean union runs here where paper.js lives.
+   * test/grouping-parity.test.mjs asserts the two stay in step.
+   */
+  function groupContours(commands) {
+    var contours = splitContours(commands);
+    if (contours.length < 2) return contours.length ? [commands] : [];
+
+    var info = contours.map(function (contour) {
+      var points = flattenContour(contour);
+      var signed = 0;
+      for (var i = 0, j = points.length - 1; i < points.length; j = i++) {
+        signed += points[j][0] * points[i][1] - points[i][0] * points[j][1];
+      }
+      signed /= 2;
+      var bounds = { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity };
+      for (var k = 0; k < points.length; k++) {
+        if (points[k][0] < bounds.x1) bounds.x1 = points[k][0];
+        if (points[k][0] > bounds.x2) bounds.x2 = points[k][0];
+        if (points[k][1] < bounds.y1) bounds.y1 = points[k][1];
+        if (points[k][1] > bounds.y2) bounds.y2 = points[k][1];
+      }
+      return { contour: contour, points: points, bounds: bounds,
+               signed: signed, area: Math.abs(signed) };
+    });
+
+    var dominant = info[0];
+    for (var d = 1; d < info.length; d++) if (info[d].area > dominant.area) dominant = info[d];
+    var outerSign = dominant.signed >= 0 ? 1 : -1;
+
+    var outers = [];
+    var holes = [];
+    for (var i2 = 0; i2 < info.length; i2++) {
+      if (!info[i2].area) continue;
+      var sign = info[i2].signed >= 0 ? 1 : -1;
+      if (sign === outerSign) outers.push(info[i2]);
+      else holes.push(info[i2]);
+    }
+    if (!outers.length) {
+      return info.map(function (entry) { return entry.contour.slice(); });
+    }
+
+    var groups = outers.map(function (entry) { return entry.contour.slice(); });
+    for (var h = 0; h < holes.length; h++) {
+      var best = -1;
+      for (var o = 0; o < outers.length; o++) {
+        if (!contourInside(holes[h], outers[o])) continue;
+        if (best === -1 || outers[o].area < outers[best].area) best = o;
+      }
+      if (best === -1) groups.push(holes[h].contour.slice());
+      else groups[best] = groups[best].concat(holes[h].contour);
+    }
+    return groups;
+  }
+
+  /** Strict containment, decided over sampled points. */
+  function contourInside(inner, outer) {
+    if (inner.bounds.x1 < outer.bounds.x1 - 1e-6 || inner.bounds.x2 > outer.bounds.x2 + 1e-6 ||
+        inner.bounds.y1 < outer.bounds.y1 - 1e-6 || inner.bounds.y2 > outer.bounds.y2 + 1e-6) {
+      return false;
+    }
+    var inside = 0;
+    var tested = 0;
+    var step = Math.max(1, Math.floor(inner.points.length / 32));
+    for (var i = 0; i < inner.points.length; i += step) {
+      tested++;
+      var point = inner.points[i];
+      var crossings = false;
+      var polygon = outer.points;
+      for (var a = 0, b = polygon.length - 1; a < polygon.length; b = a++) {
+        var xi = polygon[a][0], yi = polygon[a][1];
+        var xj = polygon[b][0], yj = polygon[b][1];
+        if (((yi > point[1]) !== (yj > point[1])) &&
+            (point[0] < (xj - xi) * (point[1] - yi) / (yj - yi) + xi)) crossings = !crossings;
+      }
+      if (crossings) inside++;
+    }
+    return tested > 0 && inside >= tested - 1;
+  }
+
+  /**
+   * Merge the whole design into one non-overlapping compound path.
+   *
+   * Normally each outer contour is emitted as its own shape, which keeps the
+   * geometry untouched. That makes a gradient fill repeat per letter, though,
+   * because Slides fills each shape separately — so this offers the other
+   * trade: one shape, at the cost of a boolean union.
+   *
+   * The union runs over the *grouped* paths rather than over loose contours.
+   * Each group (an outer contour plus the counters inside it) is already a
+   * valid shape, so the boolean only has to resolve overlaps between groups —
+   * the case libraries handle well. Throwing every contour at
+   * resolveCrossings() instead was measurably worse: it filled the counter of
+   * `b` in Epilogue and was 2.66% of pixels out, against 0.00% for this.
+   *
+   * @return {Array|null} Flattened commands, or null to fall back to shapes.
+   */
+  function flattenToSinglePath(commands) {
+    if (!window.paper) return null;
+    var groups = groupContours(commands);
+    if (groups.length < 2) return commands;
+
+    var scope = window.paper;
+    scope.setup(document.createElement('canvas'));
+    try {
+      var united = new scope.CompoundPath(commandsToPathData(groups[0]));
+      for (var i = 1; i < groups.length; i++) {
+        united = united.unite(new scope.CompoundPath(commandsToPathData(groups[i])));
+      }
+      var flattened = paperToCommands(united);
+      if (!flattened.length) return null;
+
+      // A union that loses or gains the design's extent has gone wrong;
+      // grouped shapes are always the safer answer.
+      var before = commandsBounds(commands);
+      var after = commandsBounds(flattened);
+      var tolerance = Math.max(before.width, before.height) * 0.01;
+      if (Math.abs(after.width - before.width) > tolerance ||
+          Math.abs(after.height - before.height) > tolerance) {
+        return null;
+      }
+      return flattened;
+    } catch (unionError) {
+      return null;
+    } finally {
+      if (scope.project) scope.project.clear();
+    }
+  }
+
   function commandsToPathData(commands) {
     return commands.map(function (command) {
       if (command[0] === 'Z') return 'Z';
@@ -1105,6 +1250,18 @@
       .then(function (loadedFont) {
         var commands = buildOutlines(loadedFont, spec);
         if (!commands.length) throw new Error('That text produced no visible outlines.');
+
+        var singlePath = false;
+        if (els.flatten.checked) {
+          var merged = flattenToSinglePath(commands);
+          if (merged) {
+            commands = merged;
+            singlePath = true;
+          } else {
+            setStatus('Could not merge this design into one shape; inserting ' +
+              'separate shapes instead.', 'warn');
+          }
+        }
         if (commands.length > MAX_OUTLINE_COMMANDS) {
           throw new Error('That is too much text to outline (' + commands.length +
             ' segments). Try a shorter headline.');
@@ -1114,7 +1271,8 @@
           commands: commands,
           color: spec.color,
           text: spec.text,
-          family: spec.family
+          family: spec.family,
+          singlePath: singlePath
         });
       })
       .then(function (result) {
@@ -1476,7 +1634,7 @@
     [
       'app', 'status', 'text', 'font-search', 'font-select', 'font-meta', 'preview',
       'preview-hint', 'axes', 'reset-axes', 'font-size', 'tracking', 'line-height',
-      'color', 'align', 'insert',
+      'color', 'align', 'insert', 'flatten',
       'tabs', 'panel-type', 'panel-icons', 'icon-style', 'icon-search', 'icon-grid',
       'icon-meta', 'icon-axes', 'icon-reset-axes', 'icon-size', 'icon-color', 'icon-insert'
     ].forEach(function (id) {

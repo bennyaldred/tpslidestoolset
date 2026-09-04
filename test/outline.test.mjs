@@ -204,3 +204,19 @@ test('vfNormalizeBounds fills in width and height', () => {
   assert.equal(b.width, 20);
   assert.equal(b.height, 20);
 });
+
+test('singlePath emits one shape without regrouping', () => {
+  // The client flattens before sending, so the server must not split it again.
+  const commands = [
+    ['M', 0, 0], ['L', 100, 0], ['L', 100, 100], ['L', 0, 100], ['Z'],
+    ['M', 30, 30], ['L', 30, 70], ['L', 70, 70], ['L', 70, 30], ['Z'],
+    ['M', 200, 0], ['L', 300, 0], ['L', 300, 100], ['Z']
+  ];
+  const grouped = vf.vfBuildShapesXml({ commands, firstId: 2, name: 'x' });
+  const single = vf.vfBuildShapesXml({ commands, firstId: 2, name: 'x', singlePath: true });
+  assert.equal(grouped.count, 2);
+  assert.equal(single.count, 1);
+  assert.equal((single.xml.match(/<p:sp>/g) || []).length, 1);
+  // All three contours land in the one path.
+  assert.equal((single.xml.match(/<a:moveTo>/g) || []).length, 3);
+});

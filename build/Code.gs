@@ -875,7 +875,8 @@ function vfGroupContours(commands) {
  * @param {{commands: Array, color: string, name: string, firstId: number,
  *          offsetXEmu: number, offsetYEmu: number,
  *          extWidthEmu: (number|undefined), extHeightEmu: (number|undefined),
- *          bounds: ({x1: number, y1: number, x2: number, y2: number}|undefined)}} options
+ *          bounds: ({x1: number, y1: number, x2: number, y2: number}|undefined),
+ *          singlePath: (boolean|undefined)}} options
  * @return {{xml: string, count: number, widthEmu: number, heightEmu: number,
  *           naturalWidthEmu: number, naturalHeightEmu: number}}
  */
@@ -893,7 +894,11 @@ function vfBuildShapesXml(options) {
   var baseName = options.name || 'Variable type';
   var id = options.firstId || 2;
 
-  var groups = vfGroupContours(options.commands);
+  // `singlePath` means the caller has already merged the design into
+  // non-overlapping contours, so grouping would only split it up again.
+  var groups = options.singlePath
+    ? [options.commands]
+    : vfGroupContours(options.commands);
   if (!groups.length) groups = [options.commands];
 
   var parts = [];
@@ -1358,7 +1363,8 @@ function vfInsertVector(payload) {
     offsetYEmu: Math.round((slideHeightEmu - extHeightEmu) / 2),
     extWidthEmu: extWidthEmu,
     extHeightEmu: extHeightEmu,
-    bounds: payload.frame ? bounds : undefined
+    bounds: payload.frame ? bounds : undefined,
+    singlePath: !!payload.singlePath
   });
 
   var parts = vfBuildPptxParts({
@@ -1397,8 +1403,9 @@ function vfInsertVector(payload) {
 
     return {
       ok: true,
-      message: 'Inserted ' + copied.length +
-        (copied.length === 1 ? ' vector shape.' : ' vector shapes (grouped).'),
+      message: copied.length === 1
+        ? 'Inserted as one vector shape.'
+        : 'Inserted ' + copied.length + ' vector shapes (grouped).',
       scale: fitted.scale
     };
   } finally {
